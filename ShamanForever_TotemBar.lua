@@ -72,9 +72,16 @@ TB.DEFAULTS = {
 	killed = { flash = true, pop = true, glow = true, mark = true },
 	mana = { on = true },   -- a slot's pick it can't pay for, in Global's style for it
 	range = true,
-	rangeHeight = 5,
-	rangeIn = { 0.2, 0.8, 0.25, 0 },
-	rangeOut = { 0.9, 0.12, 0.08, 0.85 },
+	rangeHeight = 7,
+	rangeOut = { 0.9, 0.12, 0.08, 0.8 },
+	rangeShow = "out",   -- out | both: out of range only, or in range too
+	rangeInColor = { 0.2, 0.8, 0.25, 0.8 },
+	rangeShape = "strip",   -- strip | dot
+	rangeDotSize = 12,   -- screen pixels
+	rangeDotX = 0, rangeDotY = 0,   -- from the dot's place, kept in or beside the icon
+	rangePlace = "in",   -- in | out (beside the icon)
+	rangeGap = 3,   -- beside: from what's inside it
+	rangeOrder = "after",   -- beside: the mark after (past) the time bar, or before it
 	pickHover = true,
 	skin = "default",
 	pixelTray = true,
@@ -94,13 +101,16 @@ local RANGES = {
 	extrasGap = { -10, 30, 1 }, extrasSpacing = { -10, 20, 1 },
 	idleAlpha = { 0.1, 1, 0.05 }, badgeSize = { 0.25, 0.8, 0.05 }, badgeAlpha = { 0.1, 1, 0.05 },
 	badgeSat = { 0, 1, 0.05 }, badgeX = { -30, 30, 1 }, badgeY = { -30, 30, 1 }, rangeHeight = { 1, 12, 1 },
+	rangeGap = { 0, 20, 1 }, rangeDotSize = { 3, 30, 1 }, rangeDotX = { -48, 48, 1 }, rangeDotY = { -48, 48, 1 },
 	fadeAfter = { 0, 10, 1 }, keySize = { 6, 30, 1 }, keyX = { -20, 20, 1 }, keyY = { -20, 20, 1 },
 	pixelEdge = { 1, 4, 1 },
 	expire = { secs = EXPIRE_SECS },
 }
 TB.RANGES = RANGES
 local CHOICES = { mode = { "blizzard", "active", "everything" }, show = { "always", "active", "combat", "target" },
-	barPlace = { "in", "out" }, setSwitch = { "popout", "cycle" }, stonePlinth = { "slim", "normal", "grand" } }
+	barPlace = { "in", "out" }, setSwitch = { "popout", "cycle" }, stonePlinth = { "slim", "normal", "grand" },
+	rangeShow = { "out", "both" }, rangeShape = { "strip", "dot" }, rangePlace = { "in", "out" },
+	rangeOrder = { "after", "before" } }
 local function clamp(v, r) return math.min(math.max(v, r[1]), r[2]) end
 
 local EXPIRE_OVER = { earthbind = 5, stoneclaw = 5, manaTide = 3 }
@@ -306,7 +316,7 @@ function TB.layoutBadge(bd, anchor, size, border)
 	bd:SetAlpha(c.badgeAlpha)
 	TB.saturate(bd.icon, c.badgeSat)
 	bd:ClearAllPoints()
-	local gap = inset + TB.skin.badgeGap(size)
+	local gap = inset + TB.skin.badgeGap(size, anchor)
 	local x, y = c.badgeX, c.badgeY
 	if c.pop == "up" then bd:SetPoint("TOP", anchor, "BOTTOM", x, y - gap)
 	elseif c.pop == "down" then bd:SetPoint("BOTTOM", anchor, "TOP", x, y + gap)
@@ -320,6 +330,7 @@ function TB.fitLook(v, b, border, size)
 	v:SetPoint("TOPLEFT", b, "TOPLEFT", o, -o)
 	v:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -o, o)
 	ns.StyleArt.applyBorder(v, border)
+	if v.art then ns.StyleArt.overlay(v.art, border) end
 	return o
 end
 
@@ -411,22 +422,24 @@ local slots = {}
 local bySlot = {}
 TB.slots, TB.frame = slots, bar
 
--- Frame levels over a slot's button, bottom to top: look +2, range strip +9 to +12, expiring
--- warning +13 to +15, time bar +16, then everything over the icon (GCD sweep, timer Cooldown, key,
--- end flashes). The strip's in-range part is opaque, so the warning sits over it; a bar along the
--- top edge hides the strip under it (a missed mark, never a false one).
-TB.RANGE_LEVEL = 9
-local WARN_LEVEL = TB.RANGE_LEVEL + 4
-local TIME_BAR_LEVEL = TB.RANGE_LEVEL + 7
-local OVER_RANGE = TB.RANGE_LEVEL + 8
-local LOOK_LEVEL = 2
-local LOOK_OVER_RANGE = OVER_RANGE - LOOK_LEVEL
+-- A slot's layers, frame levels over its button, bottom up: a theme's plate under the picture; the
+-- picture (look: its background, No mana tint and ring); the Different-totem badge, outside it; the
+-- out of range mark, over the picture; the border's art and a theme's ring, over the mark so it
+-- never covers the frame; the expiring warning (+13 to +15) and the time bar, over both (a bar along
+-- the mark's edge hides it: a missed mark, never a false one); the GCD sweep, the timer's swipe and
+-- its numbers, the key text and the end flashes over everything. The options header's icons take the
+-- same levels over their picture (less look).
+TB.LAYER = { plate = 1, look = 2, badge = 6, mark = 9, art = 10, warn = 13, bar = 16, sweep = 17, swipe = 18,
+	key = 20, flash = 21 }
+local L = TB.LAYER
+-- Over the picture's own level
+local function overLook(name) return L[name] - L.look end
 
 local KEY_HIGHLIGHT = "UI-HUD-ActionBar-IconFrame-Mouseover"
 local function keyLayer(v)
 	local f = CreateFrame("Frame", nil, v)
 	f:SetAllPoints()
-	f:SetFrameLevel(v:GetFrameLevel() + LOOK_OVER_RANGE + 3)
+	f:SetFrameLevel(v:GetFrameLevel() + overLook("key"))
 	f.text = W.makeKeyText(f)
 	f.glow = f:CreateTexture(nil, "OVERLAY")
 	f.glow:SetAllPoints()
@@ -438,7 +451,7 @@ end
 
 local function gcdSweep(v)
 	local cd = W.makeGCDSweep(v)
-	cd:SetFrameLevel(v:GetFrameLevel() + LOOK_OVER_RANGE)
+	cd:SetFrameLevel(v:GetFrameLevel() + overLook("sweep"))
 	return cd
 end
 
@@ -506,12 +519,12 @@ for index, el in ipairs(ELEMENTS) do
 
 	local v = CreateFrame("Frame", nil, bar)
 	v:SetAllPoints(b)
-	v:SetFrameLevel(b:GetFrameLevel() + LOOK_LEVEL)
+	v:SetFrameLevel(b:GetFrameLevel() + L.look)
 	v:EnableMouse(false)
 	s.vis = v
 	v.school = el
 	local badge = CreateFrame("Frame", nil, bar)
-	badge:SetFrameLevel(b:GetFrameLevel() + 6)
+	badge:SetFrameLevel(b:GetFrameLevel() + L.badge)
 	badge.icon = badge:CreateTexture(nil, "ARTWORK")
 	badge.icon:SetAllPoints()
 	W.cropIcon(badge.icon)
@@ -521,8 +534,8 @@ for index, el in ipairs(ELEMENTS) do
 	local kf = ns.Effects.endFlash(bar, b, "totembar", v)
 	s.expired = ns.Effects.endFlash(bar, b, "totembar", v)
 	s.killed = kf
-	kf:SetFrameLevel(b:GetFrameLevel() + OVER_RANGE + 4)
-	s.expired:SetFrameLevel(b:GetFrameLevel() + OVER_RANGE + 4)
+	kf:SetFrameLevel(b:GetFrameLevel() + L.flash)
+	s.expired:SetFrameLevel(b:GetFrameLevel() + L.flash)
 	for _, flash in ipairs({ kf, s.expired }) do flash:ClearAllPoints(); flash:SetAllPoints(v) end
 	v.bg = v:CreateTexture(nil, "BACKGROUND")
 	v.bg:SetAllPoints()
@@ -530,12 +543,17 @@ for index, el in ipairs(ELEMENTS) do
 	v.icon:SetAllPoints()
 	W.cropIconExact(v.icon)
 	s.timer = ns.Timer.new(v, "totembar", "uptime", { anchor = v, school = el })
-	s.timer.cd:SetFrameLevel(v:GetFrameLevel() + LOOK_OVER_RANGE + 1)
-	s.timer.bar:SetFrameLevel(b:GetFrameLevel() + TIME_BAR_LEVEL)
+	s.timer.cd:SetFrameLevel(v:GetFrameLevel() + overLook("swipe"))
+	s.timer.bar:SetFrameLevel(b:GetFrameLevel() + L.bar)
 	v.cd = s.timer.cd
 	s.keys = keyLayer(v)
 	s.gcd = gcdSweep(v)
 	s.command = "CLICK ShamanForeverKeyCast" .. NAME[el] .. ":LeftButton"
+	-- The border's art and a theme's ring, over the out of range mark
+	v.art = CreateFrame("Frame", nil, v)
+	v.art:SetAllPoints()
+	v.art:SetFrameLevel(b:GetFrameLevel() + L.art)
+	v.noOverlay = true
 
 	makePicker(s, NAME[el])
 end
@@ -595,7 +613,7 @@ for _, e in ipairs({ { "Call", CALL }, { "Recall", RECALL } }) do
 	b:SetAttribute("spell", spell)
 	local v = CreateFrame("Frame", nil, bar)
 	v:SetAllPoints(b)
-	v:SetFrameLevel(b:GetFrameLevel() + LOOK_LEVEL)
+	v:SetFrameLevel(b:GetFrameLevel() + L.look)
 	v.icon = v:CreateTexture(nil, "ARTWORK")
 	v.icon:SetAllPoints()
 	W.cropIconExact(v.icon)
@@ -787,7 +805,7 @@ function TB.paintLow(v, low)
 		v.lowOver = v:CreateTexture(nil, "ARTWORK", nil, 2)
 		v.lowOver:SetAllPoints(v.icon)
 		ns.StyleArt.followMask(v, v.lowOver)
-		v.lowRing = W.makeRing(v.textFrame or v, v.icon)
+		v.lowRing = W.makeRing(v.textFrame or v.art or v, v.icon)
 		-- The picture's shape, inside its border's frame
 		for _, e in ipairs(v.lowRing.edges) do ns.StyleArt.maskOver(v, e, v.icon) end
 	end
@@ -823,14 +841,14 @@ function TB.drawTimeLeft(s)
 		local ok, a = ns.try("totem bar: time bar", d.EvaluateRemainingDuration, d, ns.CURVE_LIVE)
 		if ok then tbar:SetAlpha(a) end
 	end
-	TB.range.drawTimeLeft(s)
+	TB.range.refresh(s)
 end
 
--- The slot's expiring warning over the range strip, once: see the frame levels above
+-- The slot's expiring warning at its layer (TB.LAYER), once
 local function liftWarning(s)
 	local x = s.timer.exp
 	if not x or x.sfLifted then return end
-	local lv = s.button:GetFrameLevel() + WARN_LEVEL
+	local lv = s.button:GetFrameLevel() + L.warn
 	x:SetFrameLevel(lv)
 	x.ringHost:SetFrameLevel(lv)
 	local g = x.glow
@@ -1337,6 +1355,8 @@ function TB.applyTimers()
 		s.timer:apply()
 		TB.skin.styleTimer(s.timer, s.vis, size)
 	end
+	-- A mark beside the slots keeps its place past a resized time bar
+	if not ns.inCombat() and TB.range.band(bar) then TB.range.layout(size) end
 	-- Off clears the sweep; on, the next cast shows it (a refresh here could cut one short)
 	if not ns.Style.value("totembar", "gcd", "show") then refreshGCD() end
 end
@@ -1622,10 +1642,12 @@ end
 
 local function onEvent(_, event, arg1, ...)
 	if event == "PLAYER_TOTEM_UPDATE" then
+		TB.range.totemChanged(not isSecret(arg1) and arg1 or nil)
 		refresh()
 	elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
 		local _, spell = ...
 		if isSecret(spell) or type(spell) ~= "number" then return end
+		TB.range.onCast(spell)
 		refreshAfterCast(spell)
 	elseif event == "ACTIONBAR_SLOT_CHANGED" then
 		local base = multiAction(1, 1) - 1
@@ -1707,7 +1729,7 @@ function TB.hasTotems() return hasTotems end
 -- happens in layout()
 local PREVIEW_STATES = { "down", "expiring", "killed", "ranout", "empty" }
 local PREVIEW_WARNING = { earth = { "empty" }, fire = { "empty" }, water = { "down", range = true },
-	air = { "down", range = true } }
+	air = { "down", range = "in" } }
 -- Each slot's totem in a preview: seconds left of its length (fire's under Magma Totem's 20 s, the shortest)
 TB.PREVIEW_LEFT = { earth = { 250, 300 }, fire = { 12, 30 }, water = { 83, 300 }, air = { 165, 300 } }
 
@@ -1720,32 +1742,12 @@ local function paintSlot(s, rec)
 	s.badge:Hide()
 	s.killed:setIcon(icon)
 	s.expired:setIcon(icon)
-	if s.rangeGate then s.rangeGate:SetAlpha(0) end
-	local size = s.button:GetWidth()
-	local strip = s.previewRange
-	if rec.range and c.range and shown then
-		if not strip then
-			strip = CreateFrame("Frame", nil, bar)
-			strip.bg = strip:CreateTexture(nil, "ARTWORK")
-			strip.bg:SetAllPoints()
-			s.previewRange = strip
-		end
-		strip:SetFrameLevel(s.button:GetFrameLevel() + TB.RANGE_LEVEL + 3)
-		strip:ClearAllPoints()
-		local x, y, w, h = TB.skin.markRect(strip, size, s.inset or 0)
-		if x then
-			strip:SetPoint("TOPLEFT", s.button, "TOPLEFT", x, y)
-			strip:SetSize(w, h)
-		else
-			strip:SetPoint("TOPLEFT", s.button, "TOPLEFT", 0, 0)
-			strip:SetSize(size, W.linePx(strip, c.rangeHeight))
-		end
-		if not TB.skin.paintMark(strip, w, h, s.vis) then
-			local k = c.rangeOut
-			strip.bg:SetColorTexture(k[1], k[2], k[3], k[4] or 1)
-		end
-		strip:Show()
-	elseif strip then strip:Hide() end
+	-- The out of range mark where the bar draws it, over a pick that buffs you (or none picked); in range
+	-- while it's on
+	local id = pickSpell(s.slot)
+	local which = rec.range == "in" and "in" or "out"
+	TB.range.standIn(s, rec.range and c.range and shown and (id == nil or TB.range.covers(s.el, id))
+		and (which == "out" or c.rangeShow == "both"), s.button:GetWidth(), which)
 	v.icon:SetTexture(icon)
 	if st == "down" or st == "expiring" then
 		s.killed.mark:Hide()
@@ -1781,7 +1783,6 @@ local function showPreview(opts)
 			local s = slots[el]
 			s.killed:stop()
 			s.expired:stop()
-			if s.previewRange then s.previewRange:Hide() end
 			-- A totem that went meanwhile isn't news: no end flash; ns.Totems forgets it quietly
 			if s.dur then
 				local ok, d = ns.try("totem bar: duration", GetTotemDuration, s.slot)
@@ -1830,6 +1831,7 @@ function TB.debug()
 		TotemFrame and string.format("%.2f", TotemFrame:GetAlpha()) or "-",
 		mc and (mc:GetParent() == hiddenParent and "hidden" or (mc:GetParent() and mc:GetParent():GetName() or "?"))
 			or "none")
+	TB.range.debug()
 end
 
 Bars.register("totembar", { label = "Totem bar", cfg = cfg, saved = "totemBar", defaults = TB.DEFAULTS,

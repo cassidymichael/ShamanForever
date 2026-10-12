@@ -15,7 +15,7 @@ local setting = E.setting
 
 -- Elements: the class's rows (ns.CLASS.cooldowns). A row's fields: key, spellKey, icon, school,
 -- blurb, experimental; its parts' flags (this file's parts: readyGlow, lowMana, noReadyPop,
--- readyAtReset; others' below, auraState in _Buffs); expireLooks (which looks Expiring offers; false:
+-- reset; others' below, auraState in _Buffs); expireLooks (which looks Expiring offers; false:
 -- none), race (race IDs; others see "Not your race"), cd and duration (preview only),
 -- defaults (over the parts'), choices, styles and timerCant (see E.register).
 local COOLDOWNS = ns.CLASS.cooldowns or {}
@@ -30,7 +30,23 @@ CD.IDLE_CHOICES = { IDLE_NEVER, IDLE_OFFCD, IDLE_ONCD }
 -- held: what keeps it shown (a totem's "no totem out")
 local function heldChoices(held)
 	return { IDLE_NEVER, { IDLE_OFFCD[1], "Ready, " .. held, IDLE_OFFCD[3] },
-		{ IDLE_ONCD[1], "Cooling down, " .. held, IDLE_ONCD[3], IDLE_ONCD[4] } }
+		{ IDLE_ONCD[1], "Cooling down, " .. held, IDLE_ONCD[3], "Shown in full while it's ready and while its totem "
+			.. "is out." } }
+end
+
+-- A row with a buff of its own (auraState, _Buffs): its button shows it in full while the buff is up
+local function buffChoices(def)
+	local s = def.auraState
+	if not s then return CD.IDLE_CHOICES end
+	if s.active then
+		return { IDLE_NEVER, IDLE_OFFCD, { IDLE_ONCD[1], IDLE_ONCD[2], IDLE_ONCD[3], string.format(
+			"Shown in full while it's ready, and while it's %s when %s is on.", s.active.title:lower(), s.active.title) } }
+	end
+	local name = s.key and Spells.name(s.key) or def.spell
+	if not name then return CD.IDLE_CHOICES end
+	return { IDLE_NEVER, IDLE_OFFCD, { IDLE_ONCD[1], IDLE_ONCD[2],
+		string.format("Idle while it's cooling down, except while %s is on you%%s", name),
+		string.format("Shown in full while it's ready and while %s is on you.", name) } }
 end
 
 -- Time left: its page has a Time left block (a part's)
@@ -39,7 +55,7 @@ local function hasUptime(def) return KD.words("cooldown", def, "uptime") ~= nil 
 ns.registerPart("cooldown", {
 	defaults = { idleAlpha = 0.3, idleWhen = "never" },
 	idle = { choices = function(def)
-		return def.idleHeld and heldChoices(def.idleHeld) or CD.IDLE_CHOICES
+		return def.idleHeld and heldChoices(def.idleHeld) or buffChoices(def)
 	end },
 	page = { cooldown = "Cooldown", gcd = true, ready = {}, expire = {} },
 	preview = {
@@ -66,9 +82,140 @@ ns.registerPart("ready", {
 	defaults = function(def) return { ready = { pop = not def.noReadyPop or nil, sound = "none" } } end,
 	pop = function(def) return not def.noReadyPop end,
 })
-ns.registerPart("readyGlow", { defaults = { ready = { glow = false } }, glow = true })
--- readyAtReset: its ready also when its cooldown ends early (a talent's reset); experimental
-ns.registerPart("readyAtReset", { kind = "cooldown", experiment = "Ready at a reset" })
+-- The Ready glow, kept in full over an idle element when the player says so (idleKeep.ready)
+local GLOW_ONLY = "Only while its glow is on."
+ns.registerPart("readyGlow", { defaults = { ready = { glow = false }, idleKeep = { ready = false } }, glow = true,
+	idle = { keep = { "ready", "Ready glow", GLOW_ONLY } }, preview = { keeps = { ready = "ready" } } })
+-- reset = { talent }: a Reset event (the cooldown ends early, by that talent), and its ready then.
+-- Its pop and sound take the place of Ready's when it plays; the pop has a style of its own, which an
+-- element ships different from its Pop style (resetpop); its text is the player's words by the icon for a
+-- set time (the word's look: W.WORD's settings); experimental
+local RESET_POP = { colorBy = "event", flash = "edge", burst = "both", motion = "bounce", size = 1.8, speed = 1,
+	reach = 1.3 }
+local RESET_WORDS, RESET_WORDS_MAX, WORD_FADE = "Reset!", 24, 0.2
+CD.RESET_WORDS, CD.RESET_WORDS_MAX = RESET_WORDS, RESET_WORDS_MAX
+local function resetWords(key)
+	local words = setting(key, "reset", "words")
+	words = type(words) == "string" and words:gsub("^%s+", ""):gsub("%s+$", "") or ""
+	return words ~= "" and ns.utf8Cut(words, RESET_WORDS_MAX) or RESET_WORDS
+end
+-- The words' host hangs from the icon's parent, like the pop's bursts: the icon's motion scales its
+-- children, and the words stay where their Position says
+local WORD_LEVEL = 13
+local function homeWord(f)
+	local host = f.resetHost
+	local parent = f:GetParent()
+	if parent ~= host:GetParent() and not InCombatLockdown() then host:SetParent(parent) end
+	host:SetFrameLevel(f.popLayer:GetFrameLevel() + WORD_LEVEL)
+	return f.effects and f.effects:GetAlpha() or 1
+end
+-- The words on the icon for secs, then fading out; a new show restarts them
+local function showWord(f, key, secs)
+	local host, token = f.resetHost, {}
+	f.resetToken = token
+	f.resetWord:SetText(resetWords(key))
+	W.styleWord(f.resetWord, f, E.settingsOf(key))
+	local alpha = homeWord(f)
+	W.fadeTo(host, alpha)
+	host:Show()
+	C_Timer.After(secs, function()
+		if f.resetToken ~= token then return end
+		W.fadeTo(host, 0, WORD_FADE)
+		C_Timer.After(WORD_FADE, function()
+			if f.resetToken == token then host:Hide() end
+		end)
+	end)
+	if f.holdAwake then f.holdAwake(secs + WORD_FADE) end
+end
+-- A preview icon's word: clipped to its panel, unless /sf preview's stand-in made one of its own
+local function previewWord(ic)
+	if not ic.resetWord then
+		local clip = CreateFrame("Frame", nil, ic:GetParent())
+		clip:SetAllPoints(ic:GetParent())
+		clip:SetClipsChildren(true)
+		clip:SetFrameLevel(ic.textFrame:GetFrameLevel() + 1)
+		ic.resetWord = clip:CreateFontString(nil, "OVERLAY")
+		ns.Media.setFont(ic.resetWord, nil, 20)
+	end
+	ic.resetWord:Hide()
+	return ic.resetWord
+end
+local function resetDefaults()
+	local d = { reset = { pop = true, text = false, words = RESET_WORDS, secs = 1.5, sound = "none" } }
+	for name, v in pairs(W.WORD.defaults) do d[name] = type(v) == "table" and CopyTable(v) or v end
+	d.wordPos = "above"
+	return d
+end
+ns.registerPart("reset", {
+	kind = "cooldown", experiment = "Reset",
+	defaults = resetDefaults,
+	ranges = function()
+		local r = { reset = { secs = { 0.5, 3, 0.1 } } }
+		for name, v in pairs(W.WORD.ranges) do r[name] = v end
+		return r
+	end,
+	choices = W.WORD.choices,
+	styles = { resetpop = RESET_POP },
+	page = { reset = {} },
+	-- The state: Ready as it looks, the Reset's pop, and the words while the state is shown (the HUD's
+	-- last a set time)
+	preview = {
+		states = { { "reset", "Reset", 12 } },
+		render = function(ic, st, def)
+			local word = previewWord(ic)
+			if st ~= "reset" then
+				ic.resetUntil = nil
+				return
+			end
+			ic:SetGlowShown(setting(def.key, "ready", "glow"))
+			word:SetText(resetWords(def.key))
+			W.styleWord(word, ic, E.settingsOf(def.key))
+			local live = ic.resetUntil ~= nil and GetTime() < ic.resetUntil
+			word:SetShown(live and setting(def.key, "reset", "text") == true)
+		end,
+		pop = function(ic, st, def)
+			if st ~= "reset" then return end
+			if setting(def.key, "reset", "text") == true and ic.resetWord then
+				local secs = setting(def.key, "reset", "secs")
+				local stamp = GetTime() + secs
+				ic.resetUntil = stamp
+				ic.resetWord:Show()
+				C_Timer.After(secs, function()
+					if ic.resetUntil == stamp then ic.resetWord:Hide() end
+				end)
+			end
+			if setting(def.key, "reset", "pop") then ic:Pop("reset")
+			elseif setting(def.key, "ready", "pop") then ic:Pop() end
+		end,
+		idles = function(st, def, when)
+			if st == "reset" then return KD.idleMode(def, when) == "offcd" and not setting(def.key, "reset", "text") end
+		end,
+		standIn = function(ic)
+			ic.resetWord = ic.textFrame:CreateFontString(nil, "OVERLAY")
+			ns.Media.setFont(ic.resetWord, nil, 16)
+			ic.resetWord:Hide()
+		end,
+	},
+	runtime = {
+		make = function(def, f)
+			f.resetHost = CreateFrame("Frame", nil, f:GetParent())
+			f.resetHost:SetAllPoints(f)
+			f.resetHost:EnableMouse(false)
+			if f.effects then ns.ignoreParentAlpha(f.resetHost, true) end
+			f.resetHost:Hide()
+			f:HookScript("OnHide", function()
+				f.resetToken = nil
+				f.resetHost:Hide()
+			end)
+			f.resetWord = f.resetHost:CreateFontString(nil, "OVERLAY")
+			ns.Media.setFont(f.resetWord, nil, 16)
+		end,
+		debug = function(def)
+			if not def.resetKnown then return "reset (talent not learned)" end
+			return "reset known" .. (def.resetLog and "; resets: " .. table.concat(def.resetLog, ", ") or "")
+		end,
+	},
+})
 -- Low mana: a pulsing glow while it's ready and your mana is under a percentage. Mana is secret even
 -- out of combat: its percent goes through a curve straight into an alpha, and nothing else reads it
 local MANA = Enum.PowerType and Enum.PowerType.Mana or 0
@@ -79,9 +226,10 @@ local function lowManaOn(def)
 	return E.inUse(def.key) and setting(def.key, "lowMana", "glow") == true
 end
 ns.registerPart("lowMana", {
-	defaults = { lowMana = { glow = false, under = 30 } },
+	defaults = { lowMana = { glow = false, under = 30 }, idleKeep = { lowMana = false } },
 	ranges = { lowMana = { under = { 5, 90, 5 } } },
 	glow = true,
+	idle = { keep = { "lowMana", "Low mana glow", GLOW_ONLY } },
 	page = { lowMana = {} },
 	preview = {
 		states = { { "lowMana", "Low mana", 15 } },
@@ -91,10 +239,11 @@ ns.registerPart("lowMana", {
 		idles = function(st, def, when)
 			if st == "lowMana" then return KD.idleMode(def, when) == "offcd" end
 		end,
+		keeps = { lowMana = "lowMana" },
 	},
 	runtime = {
 		make = function(def, f)
-			f.lowManaGate = CreateFrame("Frame", nil, f.effects)
+			f.lowManaGate = CreateFrame("Frame", nil, f.keepHolder("lowMana"))
 			f.lowManaGate:SetAllPoints()
 			f.lowManaGlow = ns.Effects.glow(f.lowManaGate, f, def.key)
 			f.lowManaGlow:Hide()
@@ -154,7 +303,8 @@ end
 
 ns.registerKind("cooldown", {
 	parts = { "cooldown", "ready", "readyGlow", "lowMana" },
-	slots = { "own", "warn", "cast", "ready", "lowMana", "active", "expire", "killed", "cooldown", "gcd", "uptime" },
+	slots = { "own", "warn", "cast", "ready", "reset", "lowMana", "active", "buffBar", "expire", "killed",
+		"cooldown", "gcd", "uptime" },
 	prepare = function(def)
 		def.expires = hasUptime(def) and def.expireLooks ~= false and not KD.hook("cooldown", def, "uptime")
 		checkFrames(def)
@@ -162,7 +312,7 @@ ns.registerKind("cooldown", {
 })
 
 local function makeCooldownIcon(def)
-	-- The effects layer ignores the icon's alpha, so an idle icon doesn't fade them
+	-- The effects layer ignores the icon's alpha; its idle layer and holders fade with an idle icon
 	local f = E.newIcon(def.key, { effects = true })
 	f.tex:SetTexture(def.icon)
 	if hasUptime(def) then
@@ -173,7 +323,7 @@ local function makeCooldownIcon(def)
 	f.cdTimer = ns.Timer.new(f, def.key, "cooldown", { cd = f.cd, school = def.school })
 	if def.readyGlow or KD.hook("cooldown", def, "readyGate") then
 		-- Ready glow alpha: off cooldown; the gate's alpha multiplies it
-		f.readyGate = CreateFrame("Frame", nil, f.effects)
+		f.readyGate = CreateFrame("Frame", nil, f.keepHolder("ready"))
 		f.readyGate:SetAllPoints()
 		f.readyGlow = ns.Effects.glow(f.readyGate, f, def.key)
 	end
@@ -214,39 +364,39 @@ end
 -- login, never on a guess: a missed ready beats a false one.
 local READY_GRACE, ARM_AFTER_CAST = 0.5, 1.5
 local function arm(r) r.armed, r.by, r.castAt = true, nil, nil end
--- Still armed, still ready and its tracker still running once the grace is over: the cooldown ended
--- early (a reset), so this is its ready; a GCD alone counts as ready. Only for rows with readyAtReset
-local function endedEarly(f, spellID, by)
-	local r = f.ready
-	if not r.armed or r.by ~= by then return end
-	local st = plainCooldown(spellID)
-	if not f.ownCd:IsShown() or ns.zoning() or ns.cantAct() then
-		r.armed, r.by = nil, nil
-	elseif st == "ready" or st == "gcd" then
-		r.armed, r.by = nil, nil
-		r.at = GetTime()
-		for _, fn in ipairs(r.fns) do fn() end
-	else
-		r.by = nil   -- a later read of its end may try again
-	end
-end
--- Its own cooldown read over: the tracker's end within the grace is its ready, a later one isn't
-local function startGrace(f, spellID)
-	local r = f.ready
-	local by = GetTime() + READY_GRACE
-	r.by = by
-	if not r.atReset then return end
-	r.over = true
-	C_Timer.After(READY_GRACE, function() endedEarly(f, spellID, by) end)
-end
-local function noteReady(f, st, inEvent, spellID)
+local function noteReady(f, st, inEvent)
 	local r = f.ready
 	if st == "ready" then
-		if r.armed and not r.by then startGrace(f, spellID) end
+		-- Its own cooldown read over: the tracker's end within the grace is its ready, a later one isn't
+		if r.armed and not r.by then r.by = GetTime() + READY_GRACE end
 	elseif st == "own" and inEvent and r.castAt and GetTime() - r.castAt <= ARM_AFTER_CAST then
 		arm(r)
 	end
 end
+-- Reset: the event names the spell our cast armed, its tracker is still shown and the read isn't its own
+-- cooldown running. Any read that fails or is secret is no Reset.
+local function plainNumber(v) return type(v) == "number" and not isSecret(v) and v == v and v or nil end
+local function namesSpell(def, id)
+	return plainNumber(id) ~= nil and (id == def.spellID or Spells.keyOf(id) == def.spellKey)
+end
+local function checkReset(def, spellID, baseID)
+	local f = def.frame
+	local r = f.ready
+	if not (r and r.armed and def.spellID and def.resetKnown) then return end
+	if not (namesSpell(def, spellID) or namesSpell(def, baseID)) then return end
+	if not f.ownCd:IsShown() or ns.zoning() or ns.cantAct() then return end
+	local st = plainCooldown(def.spellID)
+	if st == nil or st == "own" then return end
+	r.armed, r.by, r.castAt = nil, nil, nil
+	r.at = GetTime()
+	r.reset = r.at
+	local log = def.resetLog or {}
+	def.resetLog = log
+	table.insert(log, string.format("%.0f (%s, %s) %s", GetTime(), tostring(spellID), tostring(baseID), st))
+	if #log > 5 then table.remove(log, 1) end
+	for _, fn in ipairs(r.fns) do fn() end
+end
+
 local function quietCooldown(f)
 	local t = CreateFrame("Cooldown", nil, f, "CooldownFrameTemplate")
 	t:SetAllPoints()
@@ -274,34 +424,9 @@ local function watchEnds(f)
 		r.armed, r.by = nil, nil
 	end)
 end
--- A reset inside a GCD reads "gcd" until that GCD ends, when nothing reads it: a second tracker on
--- the cooldown with the GCD, which never ends before the spell's own, starts the grace at its end
-local function watchGCD(f, spellID)
-	local r = f.ready
-	local g = r.gcdCd
-	if not g then
-		g = quietCooldown(f)
-		g:Hide()
-		r.gcdCd = g
-		g:HookScript("OnCooldownDone", function()
-			if r.armed and not r.by then startGrace(f, r.gcdSpell) end
-		end)
-	end
-	if g:IsShown() then return end
-	local ok, dur = safe(C_Spell.GetSpellCooldownDuration, spellID)
-	if not (ok and dur) then return end
-	r.gcdSpell = spellID
-	ns.try("ready at a reset", g.SetCooldownFromDurationObject, g, dur, true)
-end
--- Its own cooldown runs again (a cast): what was seen of the last one's end is gone
-local function restarted(r)
-	r.over = nil
-	if r.gcdCd then r.gcdCd:Clear() end
-end
 function CD.noteCast(f, spellID)
 	watchEnds(f)
 	local r = f.ready
-	restarted(r)
 	r.castAt = GetTime()
 	if plainCooldown(spellID) == "own" then arm(r) end
 end
@@ -327,6 +452,8 @@ function CD.resetReady(f, off)
 	f.ownCd:Clear()
 end
 function CD.readyNow(f) return f.ready ~= nil and f.ready.at == GetTime() end
+-- readyNow, and it is a Reset
+function CD.resetNow(f) return f.ready ~= nil and f.ready.reset == GetTime() and f.ready.at == GetTime() end
 -- fn() at the tracker's end and at an early end; it checks CD.readyNow itself
 local function onReady(f, fn)
 	watchEnds(f)
@@ -338,14 +465,10 @@ end
 -- combat).
 local function cooldownFor(f, key, spellID, inEvent)
 	watchEnds(f)
-	local r = f.ready
 	local st = plainCooldown(spellID)
-	noteReady(f, st, inEvent, spellID)
-	if r.atReset and r.armed and st == "gcd" then watchGCD(f, spellID) end
-	if r.atReset and st == "own" and inEvent then restarted(r) end
+	noteReady(f, st, inEvent)
 	local ok, own = safe(C_Spell.GetSpellCooldownDuration, spellID, true)
-	-- Once its end was seen, "own" outside the event is a GCD ending: its empty duration would clear the tracker
-	if st == "own" and ok and own and (inEvent or not (r.over and f.ownCd:IsShown())) then
+	if st == "own" and ok and own then
 		ns.try("ready tracker", f.ownCd.SetCooldownFromDurationObject, f.ownCd, own, true)
 	elseif st == "ready" and not f.ready.armed then f.ownCd:Clear() end
 	armRunning(f, spellID, st, ok and own)
@@ -361,24 +484,29 @@ local function cooldownFor(f, key, spellID, inEvent)
 end
 CD.cooldownFor = cooldownFor
 
--- Pop when ready. gate(): "ready", "blocked" (a greyed pop, if chosen) or nil (none); no gate: ready
+-- Pop when ready. gate(): "ready", "blocked" (a greyed pop, if chosen) or nil (none); no gate: ready.
+-- At a Reset, the Reset's pop takes the place of Ready's, which plays when the Reset's is off.
 local function popWhenReady(f, key, gate)
 	onReady(f, function()
 		if not CD.readyNow(f) then return end
-		if not (E.isEnabled(key) and setting(key, "ready", "pop")) then return end
+		if not E.isEnabled(key) then return end
+		local reset = CD.resetNow(f) and setting(key, "reset", "pop") == true
+		if not (reset or setting(key, "ready", "pop")) then return end
 		if ns.cantAct() then return end
 		local g = "ready"
 		if gate then g = gate() end
-		if g == "ready" then f:Pop()
-		elseif g == "blocked" and setting(key, "ready", "blocked") == "grey" then f:Pop("blocked") end
+		local grey = not reset and g == "blocked" and setting(key, "ready", "blocked") == "grey"
+		if g ~= "ready" and not grey then return end
+		-- Its refresh comes a frame later: a pop that wakes the element plays at the awake alpha
+		E.fade(key, 1)
+		if reset then f:Pop("reset") elseif grey then f:Pop("blocked") else f:Pop() end
 	end)
 end
 CD.popWhenReady = popWhenReady
 
 -- Idle
 -- Off cooldown with nothing of its own going on. isOnGCD is only vouched for inside the event,
--- so its answer is kept (cdRunning). Going idle waits IDLE_DELAY so a ready or run-out pop plays at full.
-local IDLE_DELAY = ns.IDLE_DELAY
+-- so its answer is kept (cdRunning).
 local refreshCooldown
 -- An unreadable answer reports running but uncertain
 local function ownCooldownRunning(def, inEvent)
@@ -394,23 +522,17 @@ local function ownCooldownRunning(def, inEvent)
 	end
 	return def.cdRunning, true
 end
-local function fadeTo(def, alpha) W.fadeTo(def.frame, alpha) end
+local function fadeTo(def, alpha) E.fade(def.key, alpha) end
 
 -- def needs key, frame, spellID and refresh (other engines pass such a table too); held: something
 -- of its own keeps it shown (low reagents, a part's state)
 local function applyIdle(def, held, inEvent)
-	local when = setting(def.key, "idleWhen")
+	local when = E.idleWhen(def.key)
 	local running, certain = ownCooldownRunning(def, inEvent)
 	local busy
 	if KD.idleMode(def, when) == "oncd" then busy = not (running and certain) else busy = running end
 	busy = busy or held or when == "never" or not P.getAccount().locked
-	if busy then def.idleAt = nil
-	elseif def.idle == false then
-		def.idleAt = GetTime() + IDLE_DELAY
-		C_Timer.After(IDLE_DELAY + 0.05, function() def.refresh(def) end)
-	end
-	local waiting = def.idleAt and GetTime() < def.idleAt
-	fadeTo(def, (busy or waiting) and 1 or E.idleAlpha(def.key))
+	fadeTo(def, busy and 1 or E.idleAlpha(def.key))
 	def.idle = not busy
 end
 CD.applyIdle = applyIdle
@@ -471,10 +593,21 @@ local function soundWhenReady(f, key, gate)
 		if not f:IsVisible() or GetTime() - (f.shownAt or 0) < JUST_SHOWN then return end
 		if not CD.readyNow(f) then return end
 		if gate and gate() ~= "ready" then return end
-		ns.Sounds.element(key, "ready")
+		local reset = CD.resetNow(f) and setting(key, "reset", "sound") ~= "none"
+		ns.Sounds.element(key, reset and "reset" or "ready")
 	end)
 end
 CD.soundWhenReady = soundWhenReady
+
+-- Text at a Reset
+local function textWhenReset(f, key)
+	onReady(f, function()
+		if not CD.resetNow(f) then return end
+		if not (E.isEnabled(key) and setting(key, "reset", "text") == true) or ns.cantAct() then return end
+		E.fade(key, 1)
+		showWord(f, key, setting(key, "reset", "secs"))
+	end)
+end
 
 for _, def in ipairs(COOLDOWNS) do
 	def.refresh = refreshCooldown
@@ -485,7 +618,7 @@ for _, def in ipairs(COOLDOWNS) do
 	end
 	popWhenReady(def.frame, def.key, gate)
 	soundWhenReady(def.frame, def.key, gate)
-	def.frame.ready.atReset = def.readyAtReset or nil
+	if def.reset then textWhenReset(def.frame, def.key) end
 	-- The swipe's end, and the spell's own (the time bar's), which can end inside a GCD
 	for _, cd in ipairs({ def.frame.cd, def.frame.ownCd }) do
 		cd:HookScript("OnCooldownDone", function() C_Timer.After(0, function() refreshCooldown(def) end) end)
@@ -571,6 +704,7 @@ function CD.resolve()
 		end
 		if known ~= def.spellID then def.takesReagent = nil end
 		def.spellID, def.iconID = known, knownIcon
+		def.resetKnown = def.reset ~= nil and Spells.known(def.reset.talent) ~= nil
 		table.insert(sig, tostring(def.spellID)); table.insert(sig, tostring(def.iconID))
 	end
 	return table.concat(sig, ",")
@@ -610,8 +744,13 @@ function CD.onCast(spellID)
 	end
 end
 
--- inEvent: from SPELL_UPDATE_COOLDOWN
-function CD.onCooldowns(inEvent)
+-- inEvent: from SPELL_UPDATE_COOLDOWN, with the spell it names
+function CD.onCooldowns(inEvent, spellID, baseID)
+	if inEvent then
+		for _, def in ipairs(COOLDOWNS) do
+			if def.reset and E.isEnabled(def.key) then checkReset(def, spellID, baseID) end
+		end
+	end
 	refreshCooldowns(inEvent)
 end
 

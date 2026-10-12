@@ -1008,13 +1008,20 @@ function Page:goTo(name)
 end
 
 local HELP_GREY = 0.72
-function Page:text(str, shown)
+-- tipTitle, tip: a tooltip on hovering the text
+function Page:text(str, shown, tipTitle, tip)
 	local f = self:row(20)
 	f.text = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 	f.text:SetTextColor(HELP_GREY, HELP_GREY, HELP_GREY)
 	f.text:SetPoint("TOPLEFT", 4, -4)
 	f.text:SetJustifyH("LEFT")
 	f.text:SetSpacing(2)
+	if tip then
+		local hit = CreateFrame("Frame", nil, f)
+		hit:SetAllPoints(f.text)
+		hit:EnableMouse(true)
+		Page.setTip(hit, tipTitle, tip, "above")
+	end
 	return self:add(f, function() return f.text:GetStringHeight() + 12 end, shown, function()
 		f.text:SetWidth(math.min(self:width() - 8, TEXT_MAX_W))
 		f.text:SetText(type(str) == "function" and str() or str)
@@ -1038,20 +1045,10 @@ end
 
 -- Switches (Page.pillSwitch, Page.boxSwitch): show(on), nudge(), and flip(), the click; a refused one
 -- shakes and stays as get() says
-local ROUND = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
 local SLIDE, SHAKE = 0.12, 0.24
 local GOLD_TEXT, GREY_TEXT = { 1, 0.82, 0 }, { 0.5, 0.5, 0.5 }
 local Switch = {}
 
--- A round texture: a colour under the client's round portrait mask
-function Page.disc(parent, layer, sub)
-	local t = parent:CreateTexture(nil, layer, nil, sub)
-	local m = parent:CreateMaskTexture()
-	m:SetTexture(ROUND, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
-	m:SetAllPoints(t)
-	t:AddMaskTexture(m)
-	return t
-end
 local function mix(a, b, f) return a + (b - a) * f end
 
 -- One ticker moves every switch in motion, made at the first
@@ -1163,14 +1160,14 @@ function Page.pillSwitch(parent, get, set, title, tip, word)
 	sw.fill:SetAtlas(BAR .. "Fill-Yellow", false)
 	sw.fill:SetPoint("LEFT", FILL_IN, 0)
 	sw.fill:SetHeight(FILL_H)
-	sw.knob = Page.disc(sw, "OVERLAY", 0)
+	sw.knob = W.disc(sw, "OVERLAY", 0)
 	sw.knob:SetSize(KNOB, KNOB)
 	sw.knob:SetColorTexture(KNOB_RIM[1], KNOB_RIM[2], KNOB_RIM[3], 1)
-	sw.knobFace = Page.disc(sw, "OVERLAY", 1)
+	sw.knobFace = W.disc(sw, "OVERLAY", 1)
 	sw.knobFace:SetSize(KNOB - 2, KNOB - 2)
 	sw.knobFace:SetPoint("CENTER", sw.knob)
 	sw.knobFace:SetColorTexture(1, 1, 1, 1)
-	local hi = Page.disc(sw, "OVERLAY", 2)
+	local hi = W.disc(sw, "OVERLAY", 2)
 	hi:SetSize(KNOB / 2, KNOB / 3)
 	hi:SetPoint("TOP", sw.knob, "TOP", 0, -2)
 	hi:SetColorTexture(KNOB_HI[1], KNOB_HI[2], KNOB_HI[3], KNOB_HI[4])
@@ -1208,6 +1205,7 @@ function Page.pct(v) return string.format("%.0f%%", v * 100) end
 function Page.times(v) return string.format("%.2fx", v) end
 function Page.int(v) return string.format("%d", v) end
 function Page.px(v) return string.format("%d px", v) end
+function Page.secs(v) return string.format("%.1f s", v) end
 local NUMBER = "%-?%d*%.?%d+"
 local BOX_W, BOX_GAP = 52, 10
 
@@ -1289,6 +1287,29 @@ function Page:slider(label, tip, minV, maxV, step, fmt, get, set, shown)
 			updating = false
 		end
 		if not box:HasFocus() then box:SetText(fmt(v)) end
+	end)
+end
+
+-- A line of text: set(text) when Enter or leaving the box accepts it, Escape keeps what get() has
+function Page:textbox(label, tip, get, set, maxLetters, shown)
+	local f = self:row(34)
+	f.label = self:label(f, label, tip)
+	local box = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
+	box:SetSize(200, 20)
+	box:SetPoint("LEFT", f, "LEFT", LABEL_W + 6, 0)
+	box:SetAutoFocus(false)
+	box:SetMaxLetters(maxLetters)
+	box:SetFontObject("GameFontHighlight")
+	box:SetScript("OnEnterPressed", box.ClearFocus)
+	box:SetScript("OnEscapePressed", function(b) b:SetText(get() or ""); b:ClearFocus() end)
+	box:SetScript("OnEditFocusLost", function(b)
+		b:HighlightText(0, 0)
+		local text = strtrim(b:GetText())
+		if text ~= get() then set(text) end
+		b:SetText(get() or "")
+	end)
+	return self:add(f, 34, shown, function()
+		if not box:HasFocus() then box:SetText(get() or "") end
 	end)
 end
 

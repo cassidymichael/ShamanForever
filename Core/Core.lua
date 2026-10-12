@@ -59,9 +59,6 @@ ns.POINTS = { CENTER = true, TOP = true, BOTTOM = true, LEFT = true, RIGHT = tru
 -- A plain white texture: solid colours, swipes and backdrops
 ns.WHITE = "Interface\\Buttons\\WHITE8x8"
 
--- Going idle waits this long, so a pop plays at full first
-ns.IDLE_DELAY = 1.5
-
 -- Upper bound for a group id: above any real count, below where float ids stop advancing (2^53)
 ns.MAX_GROUP_ID = 100000
 

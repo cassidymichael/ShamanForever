@@ -40,7 +40,7 @@ MW.DEFAULTS = {
 	active = { pop = true, glow = true },
 }
 MW.RANGES = { count = { barHeight = { 1, 20, 1 }, size = { 8, 40, 1 } } }
-local CHOICES = { idleWhen = { "never", "notup", "five" }, count = { pos = { "BOTTOMRIGHT", "CENTER" } } }
+local CHOICES = { count = { pos = { "BOTTOMRIGHT", "CENTER" } } }
 -- spellID: the talent's, once known
 local DEF = { key = KEY, idleChoices = {
 	{ "never", "Never", "It always shows in full" },
@@ -85,13 +85,10 @@ E.register(KEY, { frame = f, label = Spells.name("maelstromWeapon"), defaults = 
 	effects = { glow = true, pop = true },
 	standInBorder = true,
 	styles = { uptime = { text = false, swipe = true, swipeAlpha = 0.5, swipeReverse = false, bar = false } },
-	timerCant = { bar = "Its timer is Blizzard's own; a time bar can't follow it." },
+	timerCant = { bar = "It has no time bar." },
 	kind = "maelstrom", def = DEF, spell = "maelstromWeapon", icon = MW.icon, school = "air",
 	blurb = "Its stacks, with a pop and a glow at five.", experimental = "Maelstrom Weapon" })
-local function idleWhen()
-	local w = own("idleWhen")
-	return tContains(CHOICES.idleWhen, w) and w or "notup"
-end
+local function idleWhen() return E.idleWhen(KEY) end
 
 -- Containers sit at the text level + 5; parts are set from that, never read back
 local function baseLevel() return f.textFrame:GetFrameLevel() + 5 end
@@ -396,7 +393,7 @@ function applyIdle()
 	if ns.deferWhileAurasSecret("maelstrom idle", applyIdle) then return end
 	local on = idleWhen() == "five" and E.inUse(KEY) and P.getAccount().locked
 		and copyReady()
-	gate:SetAlpha(on and E.idleAlpha(KEY) or 1)
+	W.fadeTo(gate, on and E.idleAlpha(KEY) or 1, E.idleFade())
 	if five.host then five.host:SetAlpha(on and 1 or 0) end
 end
 
@@ -413,8 +410,9 @@ local function refresh()
 		return
 	end
 	f.tex:SetDesaturated(false)
-	-- The buttons say when it's up, on the effects layer, which ignores this icon's alpha
-	W.fadeTo(f, (P.getAccount().locked and idleWhen() ~= "never") and E.idleAlpha(KEY) or 1)
+	-- The buttons say when it's up, on the effects layer, which ignores this icon's alpha; the icon stays
+	-- faint under them, so no idle layer fades with it (a glow and pop at five show in full)
+	W.fadeTo(f, (P.getAccount().locked and idleWhen() ~= "never") and E.idleAlpha(KEY) or 1, E.idleFade())
 end
 
 local function inUse() return E.inUse(KEY) end

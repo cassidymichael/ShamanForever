@@ -20,6 +20,8 @@ local SHOCK_ICON = { earth = 136026, flame = 135813, frost = 135849 }
 SK.SHOCKS, SK.ORDER, SK.ICONS = SHOCKS, SHOCK_ORDER, SHOCK_ICON
 
 local shock = E.newIcon("shock", { effects = true })
+-- Its Ready glow is the icon's pulsing glow: it can be kept in full over an idle Shocks (idleKeep.ready)
+shock.glowF:SetParent(shock.keepHolder("ready"))
 shock.cdTimer = ns.Timer.new(shock, "shock", "cooldown", { cd = shock.cd, school = "spirit" })
 shock.stack()
 local shockIcon = 136026
@@ -33,10 +35,12 @@ E.register("shock", { frame = shock, label = "Shocks", paint = function(t) t:Set
 		mana = { on = true }, range = { on = true },
 		-- side: above or below in a row group, right or left in a column; size: of the icon's
 		marks = { frost = true, flame = true, side = "above", size = 0.44, gap = 2 },
-		ready = { pop = true, glow = false, sound = "none" } },
+		ready = { pop = true, glow = false, sound = "none" }, idleKeep = { ready = false, marks = false } },
 	ranges = { marks = { size = { 0.3, 0.5, 0.02 }, gap = { 0, 20, 1 } } },
 	choices = { marks = { side = { "above", "below" } } },
-	def = { key = "shock", idleChoices = CD.IDLE_CHOICES },
+	def = { key = "shock", idleChoices = CD.IDLE_CHOICES, idleKeep = {
+		{ "ready", "Ready glow", "Only while its glow is on." },
+		{ "marks", "Icons for Frost and Flame Shock on target" } } },
 	effects = { glow = true, pop = true },
 	kind = "shock", icon = 136026, school = "spirit", blurb = "Cooldown, range and mana." })
 
@@ -47,8 +51,8 @@ CS.watch("shock", { frame = shock, power = true, range = true,
 
 local function refreshCooldown(inEvent)
 	if not E.inUse("shock") then
-		idleDef.cdRunning, idleDef.idle, idleDef.idleAt = nil, nil, nil
-		W.fadeTo(shock, 1)
+		idleDef.cdRunning, idleDef.idle = nil, nil
+		E.fade("shock", 1)
 		return CD.resetReady(shock, true)
 	end
 	local dur, bar = CD.cooldownFor(shock, "shock", shockSpellID, inEvent)
@@ -81,11 +85,15 @@ local function syncGlowTicker()
 end
 
 -- On-target marks: Frost Shock and Flame Shock, each an aura container on your hostile target
--- On the group frame, not the icon, so they don't idle with it
+-- On the group frame, not the icon: the icon's alpha doesn't reach them, E.fade does
 local MARKS = { { key = "frost", spell = "frostShock" }, { key = "flame", spell = "flameShock" } }
 SK.MARKS = MARKS
 local marksHost = CreateFrame("Frame", nil, shock:GetParent())
 marksHost:Hide()
+-- What the marks hang from: it fades with an idle Shocks (idleKeep.marks), the host shows and hides them
+local marksIdle = CreateFrame("Frame", nil, marksHost)
+marksIdle:SetAllPoints()
+shock.keepOut.marks = marksIdle
 local previewing = false
 
 local function markOn(m) return m.spellID ~= nil and own("marks", m.key) and true or false end
@@ -209,8 +217,8 @@ local function makeMark(m)
 	local ok, err = pcall(function()
 		-- The container sizes itself to its layout (nothing, for a slot): only its top left places the
 		-- button, so it hangs from a frame of the mark's own place and size
-		m.place = m.place or CreateFrame("Frame", nil, marksHost)
-		local c = CreateFrame("AuraContainer", nil, marksHost, "CustomAuraContainerTemplate")
+		m.place = m.place or CreateFrame("Frame", nil, marksIdle)
+		local c = CreateFrame("AuraContainer", nil, marksIdle, "CustomAuraContainerTemplate")
 		m.container = c
 		c:SetPoint("TOPLEFT", m.place, "TOPLEFT", 0, 0)
 		c:SetFrameStrata(marksHost:GetFrameStrata())
@@ -263,6 +271,7 @@ function placeMarks()
 	end
 	if marksHost:GetParent() ~= gf then marksHost:SetParent(gf) end
 	marksHost:SetFrameLevel(shock:GetFrameLevel())
+	marksIdle:SetFrameLevel(marksHost:GetFrameLevel())
 	marksHost:ClearAllPoints()
 	local point, rel, relPoint, x, y = shock:GetPoint(1)
 	if point then marksHost:SetPoint(point, rel, relPoint, x, y) end
@@ -293,7 +302,7 @@ function placeMarks()
 	ns.Target.refollow()
 end
 
--- The preview's marks: on ic's parent, so they don't fade with it; placed as on the HUD
+-- The preview's marks: on ic's parent, faded with it by OA.holdersAlpha (kept: not); placed as on the HUD
 local PREVIEW_MARK = { frost = { 8, 0.6 }, flame = { 12, 0.75 } }   -- length, share left
 -- On the HUD only what it can show, unless the preview shows what isn't learned
 local function previewOn(ic, m)
@@ -328,6 +337,9 @@ local function previewMarks(ic)
 			list[i] = x
 		end
 		ic.shockMarks = list
+		-- Faded with an idle icon unless kept, as the HUD's marks are
+		ic.keepFrames = { marks = {} }
+		for _, x in ipairs(list) do table.insert(ic.keepFrames.marks, x.frame) end
 	end
 	local where, size, out, o = previewPlace(ic)
 	for i, m in ipairs(MARKS) do
@@ -438,6 +450,7 @@ end
 local PREVIEW = {
 	warning = "both",
 	cooldown = true,
+	keeps = { ready = "ready" },
 	standIn = function(ic) ic.marksOnHUD = true end,
 	reach = function(ic) return previewReach(ic) end,
 	states = { { "ready", "Ready" }, { "cd", "Cooldown" }, { "mana", CS.STATES.power.name },

@@ -18,13 +18,18 @@ local spells = {}
 local slotByID, slotByName = {}, {}
 local listeners = {}
 
--- fn(event, slot, ...): "cast" (slot, spell key), "gone" (slot, last duration object)
+-- fn(event, slot, ...): "cast" (slot, spell key), "gone" (slot, last duration object), "dismissed" (slot)
 function TO.subscribe(fn) table.insert(listeners, fn) end
 local function notify(...) for _, fn in ipairs(listeners) do fn(...) end end
 
 -- Dismissals all go through DestroyTotem
 local dismissedAt = {}
-if DestroyTotem then hooksecurefunc("DestroyTotem", function(slot) dismissedAt[slot] = GetTime() end) end
+if DestroyTotem then
+	hooksecurefunc("DestroyTotem", function(slot)
+		dismissedAt[slot] = GetTime()
+		notify("dismissed", slot)
+	end)
+end
 
 -- A totem is out only when it has a name (an empty slot can report haveTotem)
 function TO.read(slot)
@@ -107,7 +112,10 @@ end
 
 function TO.onCast(spellID)
 	if Spells.keyOf(spellID) == "recall" then
-		for s = 1, 4 do dismissedAt[s] = GetTime() end
+		for s = 1, 4 do
+			dismissedAt[s] = GetTime()
+			notify("dismissed", s)
+		end
 	end
 	local slot = slotByID[spellID]
 	if not slot then
@@ -190,7 +198,7 @@ end
 -- The preview's end flash; secs: when the cooldown its end started shows (none: it doesn't)
 local function previewEnd(ic, def, kit, st, opts, secs)
 	if opts then
-		if not ic.endFlash then ic.endFlash = ns.Effects.endFlash(ic, ic, def.key) end
+		if not ic.endFlash then ic.endFlash = ns.Effects.endFlash(ic.popLayer or ic, ic, def.key) end
 		ic.endFlash:setIcon(def.iconID or def.icon)
 		ic.endFlash:play(nil, opts)
 	end
@@ -287,22 +295,22 @@ ns.registerPart("totemSlot", {
 local FIRE_NOVA_CHOICES = {
 	{ "never", "Never", "It always shows in full" },
 	{ "nototem", "No fire totem", "Idle while it's ready and no fire totem is out",
-		"Idle only while it can't be cast.", counts = "offcd" },
+		"No fire totem: idle only while it can't be cast.", counts = "offcd" },
 	{ "offcd", "Ready", "Idle while it's ready, with or without a fire totem out",
-		"With or without a fire totem out." },
+		"Ready: with or without a fire totem out." },
 	{ "oncdany", "Cooling down", "Idle while it's cooling down, with or without a fire totem out",
-		"With or without a fire totem out.", counts = "oncd" },
+		"Cooling down: with or without a fire totem out.", counts = "oncd" },
 	{ "oncd", "Cooling down, no fire totem", "Idle while it's cooling down and no fire totem is out",
-		"Shown in full only while it's ready." },
+		"Cooling down, no fire totem: shown in full while it's ready and while a fire totem is out." },
 }
 -- The preview's fire totem time left: under the shortest fire totem's (Magma Totem, 20 s)
 local FIRE_LEFT = 12
 ns.registerPart("needsTotem", {
 	kind = "cooldown", after = "readyGlow",
 	defaults = { warn = { grey = true, ring = false, fade = false },
-		ready = { glow = false, blocked = "grey" } },
+		ready = { glow = false, blocked = "grey" }, idleKeep = { ready = false } },
 	glow = true,
-	idle = { choices = FIRE_NOVA_CHOICES },
+	idle = { choices = FIRE_NOVA_CHOICES, keep = { "ready", "Ready glow", "Only while its glow is on." } },
 	page = {
 		warn = { title = "No fire totem" },
 		uptime = "Fire totem's time left",
@@ -311,7 +319,7 @@ ns.registerPart("needsTotem", {
 				"The pop when the cooldown ends with no fire totem down." } },
 	},
 	preview = {
-		uptime = true, typical = "out", warning = "nototem",
+		uptime = true, typical = "out", warning = "nototem", keeps = { ready = "ready" },
 		states = { { "nototem", "No fire totem", 20 }, { "out", "Fire totem out", 21 },
 			{ "expiring", "Expiring", 22 } },
 		render = function(ic, st, def, kit)
@@ -383,7 +391,7 @@ ns.registerPart("needsTotem", {
 -- Totem ends on the elements with a totem of their own, gated on the time left
 local function playEnd(f, field, def, dur, opts)
 	if not opts then return end
-	if not f[field] then f[field] = ns.Effects.endFlash(f.effects, f, def.key) end
+	if not f[field] then f[field] = ns.Effects.endFlash(f.popLayer, f, def.key) end
 	f[field]:setIcon(def.iconID or def.icon)
 	f[field]:play(dur, opts)
 end

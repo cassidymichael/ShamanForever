@@ -19,7 +19,6 @@ local opts = { mode = "preview", unlearned = true }
 -- Preview and Warnings give each element one step; Busy gives every state in turn, BUSY_HOLD
 -- seconds each, the n-th element starting on its n-th state so they change out of step
 local BUSY_HOLD = 2.5
-local IDLE_DELAY = ns.IDLE_DELAY
 
 local function stepsFor(key)
 	local def = OA.PREVIEW[key]
@@ -91,19 +90,19 @@ end
 local runs = {}
 local barRuns = {}   -- a bar's slots, each looping through its steps like an element
 
-local function setAlpha(f, a)
-	f:SetAlpha(a)
-	W.fadeTo(f, a)
+-- The stand-in at alpha a, and the frames over it that the player keeps in full
+local function setAlpha(f, key, st, a)
+	OA.fadeIcon(f, key, st, a)
 end
 
 local function paintElement(key, r, moment)
 	local ic, st = standIns[key], r.steps[r.i][1]
-	ic.momentToken, ic.idleToken = nil, nil
+	ic.momentToken = nil
 	local ends = OA.paint(ic, key, st, r.at)
 	local pv = OA.PREVIEW[key]
 	if pv.hold then pv.hold(ic) end
-	if idles(key, st) and not (r.idleAt and GetTime() < r.idleAt) then setAlpha(ic, OA.idleAlpha(key))
-	else setAlpha(ic, ic:GetAlpha()) end
+	if idles(key, st) then setAlpha(ic, key, st, OA.idleAlpha(key))
+	else setAlpha(ic, key, st, ic:GetAlpha()) end
 	local pop = pv.pop
 	if moment and pop then ns.try("preview pop " .. key, pop, ic, st, OA.kit) end
 	return ends
@@ -118,7 +117,6 @@ end
 
 local function startStep(key, r, moment)
 	r.at = GetTime()
-	r.idleAt = moment and idles(key, r.steps[r.i][1]) and r.at + IDLE_DELAY or nil
 	r.nextAt = nextAt(r, paintElement(key, r, moment))
 end
 
@@ -198,13 +196,7 @@ end
 local ticker = ns.ticker(0.1, function()
 	local now = GetTime()
 	for key, r in pairs(runs) do
-		if r.live and r.nextAt then
-			if now >= r.nextAt then ns.try("preview step", advance, key, r)
-			elseif r.idleAt and now >= r.idleAt then
-				r.idleAt = nil
-				W.fadeTo(standIns[key], OA.idleAlpha(key))
-			end
-		end
+		if r.live and r.nextAt and now >= r.nextAt then ns.try("preview step", advance, key, r) end
 	end
 	for _, r in ipairs(barRuns) do
 		if r.nextAt and now >= r.nextAt then ns.try("preview " .. r.key, advanceBar, r) end

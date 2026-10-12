@@ -25,8 +25,7 @@ local setting = E.setting
 local TARGET = {
 	{ key = "flameshock", spellKey = "flameShock", auraKey = "flameShock", filter = "HARMFUL|PLAYER",
 		power = true, range = true, unit = "target",
-		castNote = "Only while your " .. Spells.name("flameShock") .. " is on your target, as an overlay: Blizzard's "
-			.. "own button draws this icon.",
+		castNote = "Only while your " .. Spells.name("flameShock") .. " is on your target.",
 		castTips = { range = "While your " .. Spells.name("flameShock") .. " is on your target and it's out of "
 			.. "range." }, proc = true, duration = 12,
 		icon = 135813, school = "fire", blurb = "Shows while your Flame Shock is on your target.",
@@ -42,7 +41,7 @@ local TARGET = {
 		missing = true, engineExpire = true,
 		defaults = { on = false, idleWhen = "notarget", idleAlpha = 0,
 			warn = { grey = true, ring = false, fade = false, glow = true },
-			expire = { secs = 3, bar = true, barColor = { 1, 0.2, 0.8, 1 }, text = false } },
+			expire = { secs = 4, bar = true, barColor = { 1, 0.2, 0.8, 1 }, text = false } },
 		ranges = { expire = { secs = { 0, 10, 1 } } } },
 	{ key = "purge", spellKey = "purge", filter = "HELPFUL", unit = "target", proc = true,
 		icon = 136075, school = "spirit",
@@ -96,7 +95,7 @@ ns.registerPart("onTarget", {
 	has = onTarget,
 	runtime = {
 		engine = true,
-		-- On the effects layer: idle fades only the icon under the button
+		-- On the effects layer, the wake: idle fades only the icon under the button
 		make = function(def)
 			table.insert(ROWS, def)
 			def.gate = CreateFrame("Frame", nil, def.frame.effects)
@@ -121,7 +120,7 @@ ns.registerPart("missing", {
 		states = { { "missing", "Not on target", 30 } },
 		render = function(ic, st, def, kit)
 			if st == "missing" then ic:SetWarnParts(W.warnParts(def.key, "warn")) end
-			if (st == "up" or st == "expiring") and setting(def.key, "idleWhen") == "target" then
+			if (st == "up" or st == "expiring") and E.idleWhen(def.key) == "target" then
 				kit.idle(ic, def.key)
 			end
 		end,
@@ -218,7 +217,7 @@ for _, def in ipairs(ns.CLASS.cooldowns or {}) do
 		-- No picture of its own, only the time bar and countdown it drives, placed on the icon (the same box:
 		-- a border's picture inset is the icon's)
 		x.slot = W.makeAuraSlot(f, {
-			key = key, slot = key, unit = "none", filter = "HARMFUL|PLAYER", layer = f, noIcon = true,
+			key = key, slot = key, unit = "none", filter = "HARMFUL|PLAYER", layer = f.keepHolder("active"), noIcon = true,
 			ids = function() return Spells.ids(def.spellKey) end,
 			sites = { container = "target debuff " .. key, style = "target debuff style " .. key,
 				filter = "target debuff filter " .. key, bar = "target debuff bar " .. key },
@@ -229,7 +228,8 @@ for _, def in ipairs(ns.CLASS.cooldowns or {}) do
 end
 ns.registerPart("targetDebuff", {
 	kind = "cooldown",
-	defaults = { active = { on = true } },
+	defaults = { active = { on = true }, idleKeep = { active = false } },
+	idle = { keep = { "active", "Debuff", "Its bar, countdown and glow." } },
 	page = {
 		uptime = "Debuff time left",
 		active = function(def)
@@ -239,7 +239,10 @@ ns.registerPart("targetDebuff", {
 	},
 	preview = {
 		uptime = true,
+		keeps = { debuff = "active" },
 		states = { { "debuff", "Debuff", 60 } },
+		-- Its debuff is on your target whatever its cooldown does
+		idles = function(st, _, when) if st == "debuff" then return when ~= "never" end end,
 		render = function(ic, st, def, kit)
 			if st == "debuff" and debuffShown(def) then
 				kit.frozen(ic.upT, 0.3, def.targetDebuff.length)
@@ -293,7 +296,8 @@ local function makeGlowLook(g, what)
 			ids = function() return Spells.ids(def.spellKey) end }
 	end
 	o.key, o.owner, o.invert, o.glowOnly = def.key, def.key, true, true
-	o.parent, o.sensorParent, o.sites = def.frame.effects, def.frame.effects, glowSites(def.key, what)
+	local holder = def.frame.keepHolder(what == "debuff" and "active" or "buffBar")
+	o.parent, o.sensorParent, o.sites = holder, holder, glowSites(def.key, what)
 	g.looks[what] = W.makeClipLook(def.frame, o)
 	return g.looks[what]
 end
@@ -583,27 +587,25 @@ local function checkAll()
 end
 
 local function frameAlpha(def)
-	local idles = def.spellID and P.getAccount().locked and setting(def.key, "idleWhen") ~= "never"
+	local idles = def.spellID and P.getAccount().locked and E.idleWhen(def.key) ~= "never"
 	return idles and E.idleAlpha(def.key) or 1
 end
 
 local function applyIdle(def)
 	if not def.idle then return end
 	local on = E.inUse(def.key) and P.getAccount().locked
-		and setting(def.key, "idleWhen") == "target"
-	def.idle:SetAlpha(on and E.idleAlpha(def.key) or 1)
+		and E.idleWhen(def.key) == "target"
+	W.fadeTo(def.idle, on and E.idleAlpha(def.key) or 1, E.idleFade())
 end
 
--- Combat starts: icon to its idle alpha at once
+-- Combat starts: the icon to its idle alpha
 local function combatStarts()
 	styleLooks()
 	styleUp()
 	for _, def in ipairs(ROWS) do
 		if readsAura(def) then
 			applyIdle(def)
-			local f, a = def.frame, frameAlpha(def)
-			f:SetAlpha(a)
-			W.fadeTo(f, a)
+			E.fade(def.key, frameAlpha(def))
 		end
 	end
 end
@@ -626,7 +628,7 @@ local function refreshAura(def)
 	end
 	f.tex:SetTexture(def.icon)
 	f.tex:SetDesaturated(not def.spellID)
-	W.fadeTo(f, frameAlpha(def))
+	E.fade(key, frameAlpha(def))
 	applyIdle(def)
 end
 

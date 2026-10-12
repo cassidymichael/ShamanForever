@@ -32,6 +32,7 @@ local SHOW_WHEN = {
 
 local DEFAULTS = {
 	iconSize = W.BASE_ICON_SIZE,
+	idleFade = 0.2,   -- seconds its fade down takes
 	border = CopyTable(ns.Style.PARTS.border.defaults),
 	glowStyle = CopyTable(ns.Style.PARTS.glow.defaults),
 	popStyle = CopyTable(ns.Style.PARTS.pop.defaults),
@@ -87,7 +88,19 @@ local NO_EFFECTS = { glow = false, pop = false }
 local BASE_RANGES = { idleAlpha = { 0, 1, 0.05 } }
 -- Every element's own settings beside its defaults (_Profiles has the vocabulary)
 local BASE = { defaults = { on = true, show = "always" }, choices = { show = { "always", "combat" } } }
+-- Idle when takes the values its Idle choices list (def.idleChoices, set by its module or filled from its parts
+-- by _Kinds), so _Profiles drops any other
+local function declareIdle(e)
+	local choices = e.def and e.def.idleChoices
+	if not choices then return end
+	local list = {}
+	for _, c in ipairs(choices) do table.insert(list, c[1]) end
+	e.choices = e.choices or {}
+	e.choices.idleWhen = list
+end
+E.declareIdle = declareIdle
 function E.register(key, e)
+	declareIdle(e)
 	e.getSize = e.getSize or iconSize
 	e.effects = e.effects or NO_EFFECTS
 	e.ranges = e.ranges or {}
@@ -199,9 +212,15 @@ local TOGGLE_BINDING = "CLICK " .. ns.NAME .. "Toggle:LeftButton"
 _G["BINDING_NAME_" .. TOGGLE_BINDING] = "Turn " .. ns.NAME .. " on or off"
 _G["BINDING_HEADER_" .. ns.NAME:upper() .. "_GENERAL"] = "General"
 
--- An element's icon: opts.effects gives it an effects layer that ignores the icon's alpha (glows and
--- flashes stay full when it idles) and takes its group's opacity instead (layoutGroup). f.stack()
--- restates frame levels (W.stackIcon); layoutGroup calls it after regrouping.
+-- An element's icon: opts.effects gives it an effects layer that ignores the icon's alpha and takes its
+-- group's opacity instead (layoutGroup), and under it the idle layer, which E.fade fades with the icon:
+-- parts of the element hang from the idle layer, so Idle fades the whole element. What stays in full
+-- over an idle element hangs from the effects layer itself: a look shown only while the element is awake
+-- (a proc's button, a warning), or a holder (f.keepHolder) of a part the player may keep (idleKeep).
+-- A kept part outside the effects layer puts its own frame in f.keepOut[field]; E.fade treats it as a holder.
+-- Pops hang from the pop layer: f.holdAwake(secs) keeps it at the awake alpha while one plays, then it
+-- falls to the idle layer's alpha over Idle fade.
+-- f.stack() restates frame levels (W.stackIcon); layoutGroup calls it after regrouping.
 function E.newIcon(key, opts)
 	local f = W.makeIcon(root, DEFAULTS.iconSize, key)
 	f.count:Hide()
@@ -209,10 +228,36 @@ function E.newIcon(key, opts)
 		f.effects = CreateFrame("Frame", nil, f)
 		f.effects:SetAllPoints()
 		f.effects:SetIgnoreParentAlpha(true)
-		f.glowF:SetParent(f.effects)
+		f.idleLayer = CreateFrame("Frame", nil, f.effects)
+		f.idleLayer:SetAllPoints()
+		f.idleLayer:SetFrameLevel(f.effects:GetFrameLevel())
+		f.glowF:SetParent(f.idleLayer)
+		W.popLayer(f, f.effects, function() return 1 end, function() return W.fadeTarget(f.idleLayer) end)
+		f.popLayer:SetFrameLevel(f.effects:GetFrameLevel())
+		f.keep, f.keepOut = {}, {}
+		-- The holder of the part idleKeep[field] keeps: made once, a plain frame beside the idle layer
+		function f.keepHolder(field)
+			local h = f.keep[field]
+			if not h then
+				h = CreateFrame("Frame", nil, f.effects)
+				h:SetAllPoints()
+				h:SetFrameLevel(f.effects:GetFrameLevel())
+				-- Made after the element went idle: it starts where E.fade would put it
+				local a = f.idleTarget
+				if a and a < 1 then h:SetAlpha(E.setting(key, "idleKeep", field) == true and 1 or a) end
+				f.keep[field] = h
+			end
+			return h
+		end
 	end
 	function f.stack()
-		if f.effects then f.effects:SetFrameLevel(f:GetFrameLevel()) end
+		if f.effects then
+			local level = f:GetFrameLevel()
+			f.effects:SetFrameLevel(level)
+			f.idleLayer:SetFrameLevel(level)
+			f.popLayer:SetFrameLevel(level)
+			for _, h in pairs(f.keep) do h:SetFrameLevel(level) end
+		end
 		W.stackIcon(f)
 	end
 	return f
@@ -233,7 +278,8 @@ end
 --                          work with elements (cast states, a class module's watch) has it synced from its own layout.
 --   afterGroups()          the groups were just laid out
 --   refresh()              read everything again
---   onCooldowns(inEvent)   a cast, a cooldown or a module's own state changed
+--   onCooldowns(inEvent, spellID, baseID)   a cast, a cooldown or a module's own state changed; from
+--                          SPELL_UPDATE_COOLDOWN, the spell it names
 --   tick()                 once a second
 --   onCast(spellID)        our own successful cast
 --   debug()                its part of /sf debug
@@ -330,6 +376,38 @@ local function idleAlpha(key)
 	local v = elementSetting(key, "idleAlpha")
 	if type(v) ~= "number" or v ~= v then v = elementDefault(key, "idleAlpha") end
 	return math.min(math.max(v, 0), 1)
+end
+-- Idle fade (Global), in seconds within its range
+local function idleFade()
+	local v = db and db.idleFade
+	if type(v) ~= "number" or v ~= v then v = DEFAULTS.idleFade end
+	local r = P.RANGES.idleFade
+	return math.min(math.max(v, r[1]), r[2])
+end
+-- Its Idle when, or the default for a value its choices don't list
+local function idleWhen(key)
+	local v = elementSetting(key, "idleWhen")
+	local list = ELEMENTS[key] and ELEMENTS[key].choices and ELEMENTS[key].choices.idleWhen
+	if list and not tContains(list, v) then v = elementDefault(key, "idleWhen") end
+	return v
+end
+-- An element at Idle opacity a: its icon, its idle layer and each holder fade together, and a holder whose
+-- part the player keeps (idleKeep) stays in full. Every fade of an element goes through here.
+local function fadeElement(key, a)
+	local e = ELEMENTS[key]
+	local f = e and e.frame
+	if not f then return end
+	f.idleTarget = a
+	local secs = idleFade()
+	W.fadeTo(f, a, secs)
+	if not f.idleLayer then return end
+	W.fadeTo(f.idleLayer, a, secs)
+	if not f.awakeUntil then W.fadeTo(f.popLayer, a, secs) end
+	for _, holders in ipairs({ f.keep, f.keepOut }) do
+		for field, h in pairs(holders) do
+			W.fadeTo(h, (a < 1 and elementSetting(key, "idleKeep", field) == true) and 1 or a, secs)
+		end
+	end
 end
 
 local function showMode(key) return elementSetting(key, "show") end
@@ -851,9 +929,9 @@ end
 -- SPELL_UPDATE_COOLDOWN refreshes at once (isOnGCD is only vouched for inside it), the others wait
 -- a frame, by then with what the cast changed
 local cooldownsDirty = false
-local function flushCooldowns(inEvent)
+local function flushCooldowns(inEvent, spellID, baseID)
 	cooldownsDirty = false
-	each("onCooldowns", inEvent)
+	each("onCooldowns", inEvent, spellID, baseID)
 end
 local function flushIfDirty() if cooldownsDirty then flushCooldowns(false) end end
 local function refreshCooldownsSoon()
@@ -1111,6 +1189,7 @@ E.isEnabled, E.inUse, E.isOn, E.showMode, E.isLearned, E.setShow, E.setOn = isEn
 	setShow, setOn
 E.BASE = BASE
 E.opts, E.setting, E.default, E.idleAlpha = elementOpts, elementSetting, elementDefault, idleAlpha
+E.fade, E.idleWhen, E.idleFade = fadeElement, idleWhen, idleFade
 E.setSetting, E.event, E.range = setElementSetting, elementEvent, elementRange
 E.sizeOf, E.boxOf, E.setOff = sizeOf, boxOf, setOff
 E.applyTimers, E.resolveSpells, E.refreshAll, E.refreshCooldownsSoon = applyTimers, resolveSpells, refreshAll,
@@ -1191,7 +1270,7 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 		if not isSecret(spellID) then each("onCast", spellID) end
 		refreshCooldownsSoon()
 	elseif event == "SPELL_UPDATE_COOLDOWN" then
-		ns.try("cooldown refresh", flushCooldowns, true)
+		ns.try("cooldown refresh", flushCooldowns, true, arg1, arg2)
 	elseif event == "SPELLS_CHANGED" then
 		-- Fires often (shapeshifts, zoning): relayout only when a tracked spell changed
 		local found = resolveSpells()
@@ -1233,6 +1312,23 @@ function E.debugReport()
 	table.sort(known)
 	say("spells: %s", table.concat(known, ", "))
 	each("debug")
+	-- The icons E.fade holds below full (an aura row's sits there under its button)
+	local faded = {}
+	for _, key in ipairs(ELEMENT_KEYS) do
+		local f = ELEMENTS[key].frame
+		if f and f.idleTarget and f.idleTarget < 1 and inUse(key) then
+			local kept = {}
+			for _, holders in ipairs({ f.keep or {}, f.keepOut or {} }) do
+				for field in pairs(holders) do
+					if elementSetting(key, "idleKeep", field) == true then table.insert(kept, field) end
+				end
+			end
+			table.sort(kept)
+			table.insert(faded, string.format("%s %.0f%%%s", key, f.idleTarget * 100,
+				#kept > 0 and (" (kept: " .. table.concat(kept, ", ") .. ")") or ""))
+		end
+	end
+	if #faded > 0 then say("at Idle opacity: %s", table.concat(faded, ", ")) end
 	say("profile %s", tostring(profileName))
 	local function listed(key)
 		local tags = {}

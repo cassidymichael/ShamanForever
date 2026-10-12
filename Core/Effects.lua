@@ -248,6 +248,7 @@ local function stylePart(p, spec, parent, h, c, k, reach)
 	local delay, dur = math.max((spec.delay or 0) * k, SHORTEST), spec.dur * k
 	g.wait:SetDuration(delay)
 	for _, a in ipairs({ g.grow, g.fade, g.turn, g.move }) do a:SetStartDelay(delay); a:SetDuration(dur) end
+	return delay + dur
 end
 
 local Rig = {}
@@ -270,7 +271,7 @@ local function newRig(f, icon, level)
 			r.iconMove[i] = anim(r.iconMotion, "Translation", i)
 		end
 	end
-	local fx = CreateFrame("Frame", nil, f.effects or f)
+	local fx = CreateFrame("Frame", nil, f.popLayer or f)
 	fx:SetAllPoints()
 	fx:EnableMouse(false)
 	r.fx = fx
@@ -329,6 +330,13 @@ function Rig:home()
 	local level = self.level or f:GetFrameLevel() + 12
 	self.fx:SetFrameLevel(level)
 	front:SetFrameLevel(level)
+	-- The bursts hang from the group's frame and ignore its alpha: they play at the group's opacity, as
+	-- the flash on the pop layer does
+	if f.effects then
+		local a = f.effects:GetAlpha()
+		front:SetAlpha(a)
+		back:SetAlpha(a)
+	end
 end
 
 function Rig:scaleStep(i, a, b, dur, smoothing)
@@ -370,6 +378,7 @@ function Rig:styleMotion(motion, S, k, h)
 		scales, length = 4, 0.42 * k
 	end
 	self.motionLength = length
+	self.length = length
 	for i = scales + 1, MOTION_STEPS do self:scaleStep(i, 1, 1, SHORTEST, "NONE") end
 	for i = moves + 1, MOTION_STEPS do self:moveStep(i, 0, 0, SHORTEST, "NONE") end
 	if scales + moves == 0 then return nil end
@@ -393,12 +402,14 @@ function Rig:style(st, size, c, school, muted)
 			e.group.show:SetDuration(0.75 * k)
 			on[e.group] = true
 		end
+		self.length = math.max(self.length, 0.75 * k)
 	elseif flash == "plain" then
 		self.flash:SetVertexColor(c[1], c[2], c[3])
 		local peak = muted and 0.4 or 0.8
 		self.flashIn:SetToAlpha(peak); self.flashIn:SetDuration(0.06 * k)
 		self.flashOut:SetFromAlpha(peak); self.flashOut:SetDuration(0.3 * k)
 		on[self.flashAnim] = true
+		self.length = math.max(self.length, 0.36 * k)
 	end
 	local burst = ns.Style.field("pop", "burst").byKey[st.burst] or ns.Style.choice("pop", "burst", "none")
 	-- On the aura route each part is styled on its own, so a refused call leaves the others.
@@ -407,8 +418,9 @@ function Rig:style(st, size, c, school, muted)
 	end
 	for _, name in ipairs(burst.rigParts or {}) do
 		part(name, function()
-			stylePart(self.parts[name], RIG_PARTS[name], self.front, size, c, k, st.reach)
+			local ends = stylePart(self.parts[name], RIG_PARTS[name], self.front, size, c, k, st.reach)
 			on[self.parts[name].group] = true
+			self.length = math.max(self.length, ends)
 		end)
 	end
 	local drawn = ns.StyleArt.popParts(burst.key, school)
@@ -419,9 +431,11 @@ function Rig:style(st, size, c, school, muted)
 		for _, spec in ipairs(drawn) do
 			part(spec.name, function()
 				local p = self.parts[spec.name]
-				if spec.shift then stylePart(p, spec, self.clip, size, c, k)
-				else stylePart(p, spec, p.tex:GetParent(), h, c, k, st.reach) end
+				local ends
+				if spec.shift then ends = stylePart(p, spec, self.clip, size, c, k)
+				else ends = stylePart(p, spec, p.tex:GetParent(), h, c, k, st.reach) end
 				on[p.group] = true
+				self.length = math.max(self.length, ends)
 			end)
 		end
 	end
@@ -464,11 +478,12 @@ local function popColor(st, kind, school)
 end
 
 -- kind: a StyleArt.POP_KINDS key ("blocked": a dimmer flash). Nothing on a hidden frame: it would play
--- on its next show.
+-- on its next show. Returns how long it plays.
+local NO_STYLE = {}
 function FX.pop(f, kind, owner)
-	if not f:IsVisible() then return end
+	if not f:IsVisible() then return 0 end
 	kind = kind or "ready"
-	local st = ns.Style.get(owner, "pop")
+	local st = ns.Style.get(owner, (ns.StyleArt.POP_KINDS[kind] or NO_STYLE).style or "pop")
 	local school = ns.StyleArt.effectSchool(f)
 	local c = popColor(st, kind, school)
 	f.popRig = f.popRig or newRig(f)
@@ -484,11 +499,15 @@ function FX.pop(f, kind, owner)
 			if up then g:hold(length + HOLD_MARGIN) end
 		end
 	end
+	local all = f.popRig.length
+	if f.holdAwake then f.holdAwake(all) end
+	return all
 end
 
 -- In over inDur, held for hold, out over outDur
 local function fadeGroup(body, inDur, hold, outDur, onFinished)
 	local g = body:CreateAnimationGroup()
+	g.length = inDur + hold + outDur
 	local fadeIn, fadeOut = anim(g, "Alpha", 1), anim(g, "Alpha", 2)
 	fadeIn:SetFromAlpha(0); fadeIn:SetToAlpha(1); fadeIn:SetDuration(inDur)
 	fadeOut:SetFromAlpha(1); fadeOut:SetToAlpha(0)
@@ -586,8 +605,14 @@ function FX.endFlash(parent, anchor, owner, over)
 		self.tick:SetSize(size * 0.6, size * 0.6)
 		self.mark.x:SetSize(size * 0.7, size * 0.7)
 		self.flash:Stop(); self.quick:Stop(); self.soft:Stop()
-		if soft then self.soft:Play() elseif opts.expired then self.quick:Play() else self.flash:Play() end
-		if opts.pop then FX.pop(self.pop, opts.expired and "expired" or kind and opts.kind or "killed", owner) end
+		local g = soft and self.soft or opts.expired and self.quick or self.flash
+		g:Play()
+		local length = g.length
+		if opts.pop then
+			length = math.max(length, FX.pop(self.pop, opts.expired and "expired" or kind and opts.kind or "killed", owner))
+		end
+		-- On an element's pop layer: at the awake alpha while it plays
+		if anchor.holdAwake and parent == anchor.popLayer then anchor.holdAwake(length) end
 		if opts.mark then
 			self.mark:Show()
 			local token = {}

@@ -4,9 +4,8 @@ local E = ns.Elements
 
 local Page, K = ns.Page, ns.Options.kit
 local setTip, panelBackdrop = Page.setTip, Page.panelBackdrop
-local int, px = Page.int, Page.px
 local elementDisplay, styleBlocks, activeBlock = K.elementDisplay, K.styleBlocks, K.activeBlock
-local timerSettings, eopt, eread, eslider = K.timerSettings, K.eopt, K.eread, K.eslider
+local timerSettings, eopt, eread = K.timerSettings, K.eopt, K.eread
 
 -- Tremor watchlist: a ScrollBox recycles its rows, so hundreds of mobs take a dozen frames.
 local MOB_ROW_H, MOB_ROWS, MOB_LIST_W = 22, 9, 640
@@ -142,8 +141,6 @@ local function linkLine(p, text, tip, onClick)
 	return p:add(f, 22)
 end
 
-local WORD_POS = { { "below", "Below the icon" }, { "above", "Above the icon" },
-	{ "center", "On the icon" } }
 local function buildTremor(p)
 	local key = "tremor"
 	local function opt(name) return eopt(p, key, name) end
@@ -155,12 +152,12 @@ local function buildTremor(p)
 	p:sub(plates, eread(key, "tremorPlates"), function() p:text("Needs enemy nameplates on.") end)
 	p:checkbox("You're feared, charmed or asleep", "And for 10 s after, in case it comes again.",
 		opt("tremorFeared"))
-	p:text("The game hides party members' crowd control, so this covers only you.")
+	p:text("Only your own fear, charm or sleep, not your party's.")
 	p:text("None of these while your Tremor Totem is down, or while you're dead, on a flight path or "
 		.. "in a vehicle.")
 	p:header("Watchlist")
-	p:callout("In dungeons and raids the game hides mob names from addons, so the watchlist can't "
-		.. "work there. Only \"You're feared, charmed or asleep\" can, when it's on.")
+	p:callout("The watchlist doesn't work in dungeons and raids. Only \"You're feared, charmed or asleep\" "
+		.. "does, when it's on.")
 	p:text("Mobs that cast fear, charm or sleep.")
 	mobList(p)
 	linkLine(p, "Suggest a mob for the default list", "Opens Feedback, on the About page.",
@@ -170,14 +167,7 @@ local function buildTremor(p)
 		local textGet, textSet = s.opt("active", "text")
 		local text = p:checkbox("Text", "Shows \"" .. ns.Tremor.WORD .. "\" by the icon.", textGet, textSet)
 		p:sub(text, textGet, function()
-			local posGet, posSet = opt("wordPos")
-			p:dropdown("Position", nil, WORD_POS, posGet, posSet, nil, 160)
-			eslider(p, key, "Text size", "At the default icon size; it grows with the icon.", int, nil,
-				"wordSize")
-			local colorGet, colorSet = opt("wordColor")
-			p:color("Text colour", nil, colorGet, colorSet)
-			eslider(p, key, "Text X offset", nil, px, nil, "wordX")
-			eslider(p, key, "Text Y offset", nil, px, nil, "wordY")
+			K.wordRows(p, key)
 		end)
 	end })
 	K.castBlocks(p, key)

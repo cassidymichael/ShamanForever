@@ -49,10 +49,11 @@ ns.CLASS.cooldowns = {
 		blurb = "Cooldown, and a bar while your debuff is on your target.",
 		styles = barTimer(), timerCant = ONE_SWIPE,
 		targetDebuff = { length = 12 }, expireLooks = false, readyGlow = true, cd = 8,
-		defaults = { ready = { glow = true } },
-		buffBar = { buffKey = "improvedStormstrikeBuff", talentKey = "improvedStormstrike", school = "water" },
+		defaults = { ready = { glow = true }, range = { on = true } },
+		buffBar = { buffKey = "improvedStormstrikeBuff", talentKey = "improvedStormstrike", school = "water",
+			note = "mana regen buff" },
 		glowWhile = { experimental = { "debuff", "buff" } }, choices = { glowWhile = { "none", "debuff", "buff" } },
-		readyAtReset = true, experimental = "Stormstrike" },
+		reset = { talent = "improvedStormstrike" } },
 	{ key = "riptide", power = true, spellKey = "riptide", icon = 252995, school = "water", blurb = "Cooldown.",
 		readyGlow = true, cd = 6, experimental = "Riptide" },
 	-- Short cooldowns: no Ready pop by default
@@ -64,7 +65,7 @@ ns.CLASS.cooldowns = {
 	auraBuff({ key = "farseer", spellKey = "rageOfTheFarseer", icon = 136048, auraState = { length = 25 },
 		school = "air", cd = 180, experimental = "Rage of the Farseer" }),
 	{ key = "projection", power = true, spellKey = "totemicProjection", icon = 136099, school = "spirit",
-		blurb = "Cooldown.", cd = 60, defaults = { idleWhen = "offcd" }, experimental = "Totemic Projection" },
+		blurb = "Cooldown.", cd = 60, defaults = { idleWhen = "offcd" } },
 	{ key = "reincarnation", spellKey = "reincarnation", icon = 136080, school = "spirit",
 		blurb = "Cooldown, and your Ankhs when they run low.",
 		styles = { gcd = { show = false } },   -- never needs the sweep
@@ -129,12 +130,12 @@ ns.CLASS.buffs = {
 -- aura on you can't be filtered by spell ID.
 local function cure(key, spellKey, icon, dispel, what, state, experimental)
 	table.insert(ns.CLASS.buffs, { key = key, spellKey = spellKey, icon = icon, school = "water", power = true,
-		proc = true, filter = "HARMFUL", ownIcon = true, party = true,
+		proc = true, filter = "HARMFUL", ownIcon = true,
 		candidates = function() return { includeDispelTypes = { [dispel] = true } } end,
 		blurb = "Shows while a " .. what .. " is on you.", procHeader = state, upLabel = state,
 		idleLabel = "Not " .. state:lower(),
-		idleText = "Idle while no " .. what .. " is on you (or your party, with Your party on)",
-		popTip = "When you get one.", glowTip = "While one is on you, or on a party member with Your party on.",
+		idleText = "Idle while no " .. what .. " is on you",
+		popTip = "When you get one.", glowTip = "While one is on you.",
 		castNote = "Only while a " .. what .. " is on you.",
 		defaults = { idleAlpha = 0, active = { pop = true, glow = false } },
 		styles = PROC_SWIPE, experimental = experimental })

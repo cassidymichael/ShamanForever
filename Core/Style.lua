@@ -94,7 +94,8 @@ end
 -- it is saved); inState (an element keeps it in a state's table, beside the state's own fields);
 -- groups, elements (groups or elements can have their own); has(key) (only those elements can);
 -- label and short: its name in an element's list of own styles, none to leave it out; order: its
--- place there, as on the pages
+-- place there, as on the pages; follows (another part an owner not having its own follows, instead of
+-- Global); choicesOf (the part whose named choices it picks from)
 function S.register(part, spec)
 	if not S.PARTS[part] then
 		table.insert(S.ORDER, part)
@@ -157,6 +158,19 @@ S.register("range", {
 	elements = true, has = function(key) return ns.CastStates.has(key, "range") end,
 	label = "Out of range", short = "range", order = 5.2,
 })
+-- The pop of a cooldown's Reset event, kept in the element's reset table: it follows the element's Pop
+-- style, and an element may ship its own
+S.register("resetpop", {
+	defaults = CopyTable(S.PARTS.pop.defaults), ranges = S.PARTS.pop.ranges,
+	path = { "reset" },
+	inState = true,
+	follows = "pop", choicesOf = "pop",
+	elements = true, has = function(key)
+		local e = ns.Elements.ALL[key]
+		return e ~= nil and type(e.defaults) == "table" and e.defaults.reset ~= nil
+	end,
+	order = 5.05,
+})
 -- Art frames: round each element, and round a group or bar
 S.register("frame", {
 	defaults = { look = "none", color = { 1, 1, 1, 1 }, alpha = 1 },
@@ -198,7 +212,11 @@ function S.addField(part, field, meta)
 	for k, v in pairs(meta) do l[k] = v end
 end
 
-function S.field(part, field) return CHOICES[part] and CHOICES[part][field] end
+function S.field(part, field)
+	local spec = S.PARTS[part]
+	local into = CHOICES[spec and spec.choicesOf or part]
+	return into and into[field]
+end
 function S.fields() return FIELDS end
 
 function S.addChoice(part, field, key, entry)
@@ -339,20 +357,34 @@ function S.follows(owner, part)
 end
 
 local function base(owner, part)
-	local s = S.global(part)
+	local into = S.PARTS[part].follows
+	local s = into and S.get(owner, into) or S.global(part)
 	local d = ownerDefaults(owner, part)
 	if d then for k, v in pairs(d) do s[k] = type(v) == "table" and CopyTable(v) or v end end
 	return s
 end
 
 function S.get(owner, part)
-	if S.follows(owner, part) then return S.global(part) end
+	if S.follows(owner, part) then
+		local into = S.PARTS[part].follows
+		return into and S.get(owner, into) or S.global(part)
+	end
 	return clean(S.override(owner, part), base(owner, part), S.PARTS[part].ranges)
 end
 
 -- Same order as S.get: change both together.
 function S.value(owner, part, field)
 	local spec = S.PARTS[part]
+	if spec.follows then
+		local v = S.value(owner, spec.follows, field)
+		if S.follows(owner, part) then return v end
+		local d = ownerDefaults(owner, part)
+		if d and d[field] ~= nil then v = d[field] end
+		local o = S.override(owner, part)
+		if type(o) == "table" and type(o[field]) == type(v) then v = o[field] end
+		if type(v) == "number" then v = inRange(spec.ranges, field, v, spec.defaults[field]) end
+		return v
+	end
 	local v = spec.defaults[field]
 	local g = at(holder(nil), spec.path)
 	if type(g) == "table" and type(g[field]) == type(v) then v = g[field] end
@@ -431,7 +463,10 @@ end
 function S.shipped(owner, part)
 	local spec = S.PARTS[part]
 	if owner == nil then return true, clean(nil, spec.defaults, spec.ranges) end
-	if ownerDefaults(owner, part) == nil then return true, S.global(part) end
+	if ownerDefaults(owner, part) == nil then
+		local into = spec.follows
+		return true, into and S.get(owner, into) or S.global(part)
+	end
 	return false, base(owner, part)
 end
 

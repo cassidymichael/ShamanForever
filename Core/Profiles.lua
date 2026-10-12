@@ -30,6 +30,9 @@ local SHARE_VERSION = 9
 --             on: it's followed at all (off, the element leaves the state out)
 --   ready   = { pop, glow, sound, blocked }   the cooldown ends; glow while it's ready; blocked: the
 --             pop when it ends but can't be used now (grey | none)
+--   reset   = { pop, text, words, secs, sound }   the cooldown ends early (a talent's reset): its pop and sound
+--             take the place of ready's; text: words (the player's) by the icon for secs; the word's look is the
+--             element's wordPos, wordSize, wordColor, wordX, wordY; its pop style (part resetpop) is kept beside
 --   expire  = { secs, grey, ring, fade, glow, bar, barColor, text, over }   the last seconds
 --   ended   = { flash, pop, glow, sound }   it ran out
 --   killed  = { flash, pop, glow, mark }   it ended early
@@ -39,6 +42,8 @@ local SHARE_VERSION = 9
 --   mana    = { on }   its spell's cost can't be paid (_CastStates); its style (part power) is kept beside
 --   range   = { on }   its target is out of its spell's range; its style (part range) is kept beside
 --   lowMana = { glow, under }   it's ready and your mana is under a percentage (under): a look only
+--   idleKeep = { <state or setting> }   which of its looks stay in full while it's idle (ready, lowMana, active,
+--             buffBar, marks); an element declares just the ones it has, for the Idle block
 -- grey, ring, fade, tint and glow are the looks a state shows; pop and sound play once, as it
 -- starts: warn.pop and warn.sound as the warning begins (a buff lost). A bar's own settings use the
 -- same tables (expire, ended, killed, mana). The effect and pop kind names (warning, ranout, expired,
@@ -112,7 +117,7 @@ local RENAMED = {
 
 -- Retired settings, dropped or converted as a profile loads or is imported (account and folds: as the account
 -- loads). Drop after launch, with RENAMED, retireGroups, retireTotemBar, retireStyles, retireOwnLooks,
--- retireSounds, the values loop in P.migrate, and keepOldDefaults with the account's defaultsVersion.
+-- retireSounds, the values and fields loops in P.migrate, and keepOldDefaults with the account's defaultsVersion.
 local RETIRED = {
 	-- Profile keys from before styles
 	root = { "glowColor", "glowSpeed", "glowLow", "glowWidth", "glowSize", "popMotion", "popSize", "popSpeed",
@@ -124,9 +129,10 @@ local RETIRED = {
 		"^styles:Group frame$", "^totembar:Totems$", "^totembar:Not your pick$", "^purge:Track$",
 		"^purge:Something to purge$", "^purge:Tracking$", "^purge:Magic buff$", "^maelstrom:Five stacks$",
 		"^tremor:When it warns$", "^tremor:Tremor warning watchlist$",
-		"^waterbreathing:Under water$" },
-	-- The totem bar's switches from before its mode, and follow from before sizeFollow
-	totemBar = { "enabled", "hideTotemFrame", "hideActionBar", "killedPulse", "follow" },
+		"^waterbreathing:Under water$", "^curepoison:Your party$", "^curedisease:Your party$" },
+	-- The totem bar's switches from before its mode, follow from before sizeFollow, and the out of range
+	-- strip's in range colour
+	totemBar = { "enabled", "hideTotemFrame", "hideActionBar", "killedPulse", "follow", "rangeIn" },
 	-- Style choices that went, to their nearest: part -> field -> old -> new
 	styles = { pop = { burst = { shapes = "painted" } }, border = { look = { caps = "line" } } },
 	-- Looks an element kept as its own before Global had a style for them (element -> state name ->
@@ -137,6 +143,8 @@ local RETIRED = {
 	-- Element values that became another setting: name -> old value -> { setting, value }. The old one
 	-- goes, so that name takes its default.
 	values = { show = { never = { "on", false } } },
+	-- Element settings that went: element -> names
+	fields = { curepoison = { "party" }, curedisease = { "party" } },
 	-- Element defaults that changed, by the share version they changed in: element -> setting -> the old
 	-- default, which a profile from before keeps where it has none
 	defaults = { [9] = { flurry = { on = true }, improvedstormstrike = { on = true },
@@ -267,6 +275,12 @@ function P.migrate(profile)
 			if r[4] == nil then
 				if o[r[3]] == nil then o[r[3]] = v end
 			elseif type(o[r[3]]) ~= "table" or o[r[3]][r[4]] == nil then put(o, r[3], r[4], v) end
+		end
+	end
+	for key, names in pairs(RETIRED.fields) do
+		local o = opts[key]
+		if type(o) == "table" then
+			for _, name in ipairs(names) do o[name] = nil end
 		end
 	end
 	for _, o in pairs(opts) do
@@ -485,7 +499,7 @@ function P.export()
 end
 
 -- { min, max, step }: clamped; NaN takes the default. Elements' numbers use their registered ranges.
-local RANGES = { iconSize = { 24, 96, 1 } }
+local RANGES = { iconSize = { 24, 96, 1 }, idleFade = { 0, 1, 0.1 } }
 local GROUP_RANGES = { scale = { 0.5, 3, 0.05 }, alpha = { 0.1, 1, 0.05 }, spacing = { -20, 40, 1 },
 	size = { 24, 96, 1 }, x = { -10000, 10000, 1 }, y = { -10000, 10000, 1 }, fadeAfter = { 0, 10, 1 } }
 P.RANGES, P.GROUP_RANGES = RANGES, GROUP_RANGES

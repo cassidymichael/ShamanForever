@@ -123,14 +123,21 @@ local function makePreviewIcon(parent, key, preview, box)
 		ic.cdT = ns.Timer.new(ic, key, "cooldown", { cd = ic.cd, school = school, box = box, column = column,
 			placeOut = out })
 	end
+	-- Pops play in full over a resting icon, as on the HUD
+	local hud = type(key) == "string" and E.ALL[key] and E.ALL[key].frame
+	if hud and hud.popLayer then
+		local layer = W.popLayer(ic, ic, function() return parent:GetAlpha() end,
+			function() return W.fadeTarget(ic) * parent:GetAlpha() end)
+		ns.ignoreParentAlpha(layer, true)
+	end
+	-- What the player may keep in full over an idle icon is drawn on a frame over it (the HUD's keep holders)
+	if preview.keeps then
+		ic.keepOver = CreateFrame("Frame", nil, parent)
+		ic.keepOver:SetAllPoints(ic)
+		ic.glowF:SetParent(ic.keepOver)
+	end
 	if preview.uptime then
-		-- Over the icon from its parent: an idle icon fades under it
-		local holder = ic.textFrame
-		if preview.uptimeOver then
-			holder = CreateFrame("Frame", nil, parent)
-			holder:SetAllPoints(ic)
-			ic.upOver = holder
-		end
+		local holder = ic.keepOver or ic.textFrame
 		ic.upT = ns.Timer.new(holder, key, "uptime", { anchor = ic, dual = preview.cooldown,
 			cd = not preview.cooldown and ic.cd or nil, school = school, barInset = preview.barInset, box = box,
 			column = column, placeOut = out })
@@ -184,7 +191,8 @@ local function reset(ic, icon)
 	ic.tex:SetVertexColor(1, 1, 1)
 	ic.warnTint = nil
 	ic.tex:SetAlpha(1)
-	ic:SetAlpha(1)
+	W.fadeTo(ic, 1)
+	OA.holdersAlpha(ic, 1)
 	ic.bodyOverlay:Hide()
 	if ic.paintRing then ic.paintRing:show(false) end
 	ic:SetRingShown(false)
@@ -234,7 +242,27 @@ local previewState = {}
 
 local FAINT = 0.12
 function OA.idleAlpha(key) return math.max(E.idleAlpha(key), FAINT) end
-local function idleLook(ic, key) ic:SetAlpha(OA.idleAlpha(key)) end
+-- The frames over a preview icon (ic.keepOver, ic.keepFrames[field]) at a, each as the HUD's holder is;
+-- ease: over the Idle fade
+function OA.holdersAlpha(ic, a, key, st, ease)
+	local secs = ease and E.idleFade() or nil
+	local function put(f, v) W.fadeTo(f, v, secs) end
+	local pv = a < 1 and OA.PREVIEW[key]
+	local function kept(field)
+		return a < 1 and field ~= nil and E.setting(key, "idleKeep", field) == true
+	end
+	if ic.keepOver then put(ic.keepOver, kept(pv and pv.keeps and pv.keeps[st]) and 1 or a) end
+	if ic.popLayer and not ic.awakeUntil then put(ic.popLayer, a * ic:GetParent():GetAlpha()) end
+	for field, frames in pairs(ic.keepFrames or {}) do
+		for _, f in ipairs(frames) do put(f, kept(field) and 1 or a) end
+	end
+end
+-- A preview icon at alpha a in state st: the icon, and what the player keeps in full over it
+function OA.fadeIcon(ic, key, st, a, ease)
+	W.fadeTo(ic, a, ease and E.idleFade() or nil)
+	OA.holdersAlpha(ic, a, key, st, ease)
+end
+local function idleLook(ic, key, st) OA.fadeIcon(ic, key, st, OA.idleAlpha(key)) end
 -- Whether a state goes idle once its moment has played (the preview's own rule)
 function OA.idles(key, st)
 	local when = E.ALL[key] and E.setting(key, "idleWhen")
@@ -243,13 +271,9 @@ function OA.idles(key, st)
 	return pv and pv.idles and pv.idles(st, when) and true or false
 end
 
-local IDLE_DELAY = ns.IDLE_DELAY
+-- The preview icon rests at once; its pop plays on over it
 local function idleSoon(ic, key, st)
-	local token = {}
-	ic.idleToken = token
-	C_Timer.After(IDLE_DELAY, function()
-		if ic.idleToken == token and previewState[key] == st then idleLook(ic, key) end
-	end)
+	OA.fadeIcon(ic, key, st, OA.idleAlpha(key), true)
 end
 
 OA.PREVIEW = {}
@@ -641,7 +665,7 @@ function OA.buildHero(parent, key)
 		if def.stage then def.render(self, st, OA.kit) else
 			def.render(self.previewIcon, st, OA.kit)
 			if self.shownState == nil or self.shownState == st then
-				if OA.idles(key, st) then idleLook(self.previewIcon, key) end
+				if OA.idles(key, st) then idleLook(self.previewIcon, key, st) end
 			end
 			self.shownState = st
 		end
@@ -696,7 +720,7 @@ end
 -- Style tiles: an icon wearing a style that isn't saved anywhere, drawn by the HUD's own code.
 
 do
-	local PARTS = { "border", "glow", "pop", "frame" }
+	local PARTS = { "border", "glow", "pop", "resetpop", "frame" }
 	local Tile = {}
 	Tile.__index = Tile
 

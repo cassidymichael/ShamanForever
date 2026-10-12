@@ -32,11 +32,11 @@ gate:SetAllPoints(shield)
 local edge = FR.edge(gate, shield, "shield")
 local IDLE_CHOICES = {
 	{ "never", "Never", "It always shows in full" },
-	{ "up", "Shield up", "Idle while your shield is up", "Shown in full only as No shield." },
+	{ "up", "Shield up", "Idle while your shield is up", "Shield up: shown in full only as No shield." },
 	{ "charges", "2 or more charges",
 		"Idle while your shield has 2 or more charges. "
 			.. "It shows in full at 1 charge and as No shield at 0",
-		"Shown in full at 1 charge and as No shield." },
+		"2 or more charges: shown in full at 1 charge and as No shield." },
 }
 local COUNT_POS, TRACK = {}, { "either" }
 for pos in pairs(W.COUNT_JUSTIFY) do table.insert(COUNT_POS, pos) end
@@ -228,7 +228,7 @@ local function applyIdle()
 	local on = when ~= "never" and lookOn and P.getAccount().locked
 		and (when ~= "charges" or copyReady())
 	gateNow = on and E.idleAlpha("shield") or 1
-	gate:SetAlpha(gateNow)
+	W.fadeTo(gate, gateNow, E.idleFade())
 	full:SetAlpha((on and when == "charges") and 1 or 0)
 end
 
@@ -279,12 +279,13 @@ local function setUpShield(key)
 	SH.applyEmptyLook()
 end
 
--- Water Shield's buff may be the client's second copy of the spell: both count
+-- Water Shield's buff may be the client's second copy of the spell: both count. Only IDs this module
+-- vouched for: Spells.ids also takes any spell sharing the name (the bolts Lightning Shield fires)
 local function shieldIDMap()
 	local map = {}
 	for key, s in pairs(SHIELDS) do
 		if tracksShield(key) then
-			for id in pairs(Spells.ids(s.spell)) do map[id] = true end
+			for id in pairs(s.castIDs) do map[id] = true end
 		end
 	end
 	if tracksShield("water") then
@@ -311,7 +312,7 @@ local cover
 CS.watch("shield", { frame = shield, power = true,
 	cover = { parent = gate, sensorParent = shield, ids = shieldIDMap, level = 5 + IDLE_LEVEL + 5,
 		attach = function(up) cover = up end, detach = function() cover = nil end,
-		note = "Only while your shield is up, as an overlay: Blizzard's own button draws this icon." },
+		note = "Only while your shield is up." },
 	spells = function()
 		local s = SHIELDS[shownShield()]
 		return s.known and s.spellID or nil

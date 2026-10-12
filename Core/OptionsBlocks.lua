@@ -1,6 +1,7 @@
 -- Options kit: the standard blocks
 local _, ns = ...
 local E, G, Bars, P = ns.Elements, ns.Groups, ns.Bars, ns.Profiles
+local W = ns.Widgets
 
 local OP, Page = ns.Options, ns.Page
 local K = OP.kit
@@ -389,8 +390,7 @@ local function glowBlock(p, owner)
 	p:sub(menu, nil, function()
 		p:color("Colour", "Colour and opacity. " .. ns.CLASS.help.glowColour, r.get("color"), r.set("color"),
 			uses("color"))
-		local function secs(v) return string.format("%.1f s", v) end
-		styleSlider(p, "glow", "speed", "Pulse length", "One pulse, in seconds.", secs, r.get("speed"), r.set("speed"),
+		styleSlider(p, "glow", "speed", "Pulse length", "One pulse, in seconds.", Page.secs, r.get("speed"), r.set("speed"),
 			uses("speed"))
 		for _, e in ipairs(ns.Style.choices("glow", "look")) do
 			local names = {}
@@ -418,7 +418,10 @@ local function glowBlock(p, owner)
 	if owner == nil then ownLine(p, "glow") end
 end
 
-local function popBlock(p, owner, kind)
+-- part "resetpop": a reset's own pop, its sample playing the "reset" kind; it follows the element's pop
+local function popBlock(p, owner, kind, part)
+	part = part or "pop"
+	local reset = part ~= "pop"
 	local f, sync
 	local function playPop()
 		for _, t in ipairs(sync()) do t:pop(kind) end
@@ -428,18 +431,22 @@ local function popBlock(p, owner, kind)
 		OP.refresh()
 		if f and f:IsVisible() then playPop() end
 	end)
-	p:header("Pop style")
-	p:anchor("pop")
-	local r = styleRows(p, owner, "pop", after)
+	p:header(reset and "Reset pop style" or "Pop style")
+	p:anchor(part)
+	local r = styleRows(p, owner, part, after)
 	-- Colour is for Ready and Ran out only; a warning's pop keeps its own.
 	local colored = ns.StyleArt.POP_KINDS[kind].byStyle
-	local function burst() return ns.Style.choice("pop", "burst", r.style().burst) end
+	local function burst() return ns.Style.choice(part, "burst", r.style().burst) end
 	local function bySchool()
 		return (colored and r.style().colorBy == "school") or burst().bySchool or false
 	end
 	if owner == nil then
 		p:text("The burst when something happens: " .. ns.CLASS.help.pop .. ". "
 			.. ownersText("Elements", "pop"))
+	elseif reset then
+		p:checkbox("Same as Pop style", "Use this element's pop style.",
+			function() return ns.Style.follows(resolve(owner), part) end,
+			function(v) ns.Style.setFollow(resolve(owner), part, v); after() end)
 	else followRow(p, owner, "pop", after) end
 	local own = showWhen(r.own)
 	f = p:row(56)
@@ -454,26 +461,26 @@ local function popBlock(p, owner, kind)
 		play:ClearAllPoints()
 		play:SetPoint("LEFT", list[#list].box, "RIGHT", 24, 0)
 	end)
-	if isElement(owner) then popSchoolRow(p, owner, showWhen(bySchool)) end
+	if isElement(owner) and not reset then popSchoolRow(p, owner, showWhen(bySchool)) end
 	if colored then
-		local color, colorRow = choiceRows(p, r, "pop", "colorBy", "Colour", ns.CLASS.help.popColour, own)
+		local color, colorRow = choiceRows(p, r, part, "colorBy", "Colour", ns.CLASS.help.popColour, own)
 		p:sub(colorRow, function() return color().key == "event" and burst().bySchool end, function()
 			p:text("By school suits this burst.")
 		end)
 	end
-	choiceRows(p, r, "pop", "flash", "Flash", "Over the icon.", own)
+	choiceRows(p, r, part, "flash", "Flash", "Over the icon.", own)
 	local axis = ns.THEME.axis
-	local _, burstRow = choiceRows(p, r, "pop", "burst", "Burst", "Around the icon. " .. axis.name .. " effect: each "
+	local _, burstRow = choiceRows(p, r, part, "burst", "Burst", "Around the icon. " .. axis.name .. " effect: each "
 		.. axis.lower .. " its own.", own)
 	p:sub(burstRow, function() return burst().uses.reach end, function()
-		styleSlider(p, "pop", "reach", "Reach", "How far the burst spreads.", pct, r.get("reach"), r.set("reach"))
+		styleSlider(p, part, "reach", "Reach", "How far the burst spreads.", pct, r.get("reach"), r.set("reach"))
 	end)
-	local motion, motionRow = choiceRows(p, r, "pop", "motion", "Motion", "How the icon moves.", own)
+	local motion, motionRow = choiceRows(p, r, part, "motion", "Motion", "How the icon moves.", own)
 	p:sub(motionRow, function() return motion().uses.size end, function()
-		styleSlider(p, "pop", "size", "Motion distance", "How far it grows, hops or shakes.", pct, r.get("size"),
+		styleSlider(p, part, "size", "Motion distance", "How far it grows, hops or shakes.", pct, r.get("size"),
 			r.set("size"))
 	end)
-	styleSlider(p, "pop", "speed", "Speed", nil, pct, r.get("speed"), r.set("speed"), own)
+	styleSlider(p, part, "speed", "Speed", nil, pct, r.get("speed"), r.set("speed"), own)
 	if owner == nil then ownLine(p, "pop") end
 end
 
@@ -749,12 +756,12 @@ local function powerBadge(parent, title, tip)
 	local b = CreateFrame("Button", nil, parent)
 	setTip(b, title, tip)
 	b:SetSize(BADGE, BADGE)
-	b.edge = Page.disc(b, "ARTWORK", 0)
+	b.edge = W.disc(b, "ARTWORK", 0)
 	b.edge:SetAllPoints()
-	local face = { Page.disc(b, "ARTWORK", 1), Page.disc(b, "ARTWORK", 3), b:CreateTexture(nil, "ARTWORK", nil, 4) }
+	local face = { W.disc(b, "ARTWORK", 1), W.disc(b, "ARTWORK", 3), b:CreateTexture(nil, "ARTWORK", nil, 4) }
 	face[1]:SetSize(BADGE - 2, BADGE - 2)
 	face[1]:SetPoint("CENTER")
-	local sign = { Page.disc(b, "ARTWORK", 2), b:CreateTexture(nil, "ARTWORK", nil, 5) }
+	local sign = { W.disc(b, "ARTWORK", 2), b:CreateTexture(nil, "ARTWORK", nil, 5) }
 	sign[1]:SetSize(12, 12)
 	sign[1]:SetPoint("CENTER", 0, -1)
 	face[2]:SetSize(8, 8)
@@ -857,7 +864,7 @@ local function elementDisplay(p, key)
 	end
 end
 
--- Idle block, from the element's def (idleChoices, idleText, idleExtra).
+-- Idle block, from the element's def (idleChoices, idleText, idleExtra, idleKeep).
 local function idleBlock(p, def)
 	local key, choices = def.key, def.idleChoices
 	local function when() return E.setting(key, "idleWhen") end
@@ -889,7 +896,16 @@ local function idleBlock(p, def)
 			local extraGet, extraSet = eopt(p, key, extra.name, extra.field)
 			p:dropdown(extra.label, extra.tip, extra.choices, extraGet, extraSet, nil, 230)
 		end
-		eslider(p, key, "Idle opacity", "The icon's opacity while idle.", pct, nil, "idleAlpha")
+		eslider(p, key, "Idle opacity", "Its opacity while idle, every part.", pct, nil, "idleAlpha")
+		local keeps = def.idleKeep
+		if not keeps then return end
+		p:text("Keep these parts at full opacity even when idle:", nil, "Full opacity",
+			"Still follows its group's opacity.")
+		for _, k in ipairs(keeps) do
+			local keepGet, keepSet = eopt(p, key, "idleKeep", k[1])
+			p:checkbox(k[2], k[3], keepGet, keepSet)
+			if k[4] then p:text("Not learned yet.", showWhen(k[4])) end
+		end
 	end
 	if whenRow then p:sub(whenRow, function() return when() ~= "never" end, rows) else rows() end
 end
@@ -902,7 +918,10 @@ local function styleBlocks(p, key, timers)
 	p:header("Border style")
 	K.borderRows(p, key, relayout)
 	if e.effects.glow then glowBlock(p, key) end
-	if e.effects.pop then popBlock(p, key, e.effects.popKind or "ready") end
+	if e.effects.pop then
+		popBlock(p, key, e.effects.popKind or "ready")
+		if ns.Style.PARTS.resetpop.has(key) then popBlock(p, key, "reset", "resetpop") end
+	end
 	local CS = ns.CastStates
 	for _, state in ipairs(CS.ORDER) do
 		if CS.has(key, state) then castStyleBlock(p, key, state, CS.covered(key)) end
@@ -973,11 +992,12 @@ K.styleLink = styleLink
 
 -- Its pop and pulsing glow switches link to their style
 local LINKED = { pop = "pop", glow = "glow" }
-local function check(p, s, name, field, label, tip, shown)
+-- link: the style part its Style link goes to, over LINKED's
+local function check(p, s, name, field, label, tip, shown, link)
 	if not s.has(name, field) then return end
 	local get, set = s.opt(name, field)
 	local row = p:checkbox(label, tip, get, set, shown)
-	if LINKED[field] then styleLink(p, row, LINKED[field], get) end
+	if link or LINKED[field] then styleLink(p, row, link or LINKED[field], get) end
 	return row
 end
 -- A sound menu with Play beside it; choices(current): its list
@@ -1088,6 +1108,43 @@ local function badgeRow(p, feature)
 	ns.OptionsArt.expBadge(f, feature):SetPoint("LEFT", f, "LEFT", LABEL_W, 0)
 	p:add(f, 22)
 end
+
+-- The rows of a word by an icon (W.styleWord's settings, declared by W.WORD)
+local function wordRows(p, key, shown)
+	local posGet, posSet = eopt(p, key, "wordPos")
+	p:dropdown("Position", nil, ns.Widgets.WORD.positions, posGet, posSet, shown, 160)
+	eslider(p, key, "Text size", "At the default icon size; it grows with the icon.", int, shown, "wordSize")
+	local colorGet, colorSet = eopt(p, key, "wordColor")
+	p:color("Text colour", nil, colorGet, colorSet, shown)
+	eslider(p, key, "Text X offset", nil, px, shown, "wordX")
+	eslider(p, key, "Text Y offset", nil, px, shown, "wordY")
+end
+K.wordRows = wordRows
+
+-- reset: a cooldown's early end by a talent (def.reset.talent). Its pop and sound take the place of
+-- Ready's when it plays.
+local function resetBlock(p, def)
+	local owner = def.key
+	local s = store(p, owner)
+	if not s.has("reset") then return end
+	p:header("Reset")
+	badgeRow(p, "Reset")
+	p:text("When its cooldown ends early.")
+	local talent = ns.Spells.name(def.reset.talent)
+	p:text("Needs " .. talent .. ".", showWhen(function() return not def.resetKnown end))
+	check(p, s, "reset", "pop", "Pop", "Takes the place of Ready's pop.", nil, "resetpop")
+	local text = check(p, s, "reset", "text", "Text", "Shows your words by the icon for a moment.")
+	if text then
+		p:sub(text, s.get("reset", "text"), function()
+			local get, set = s.opt("reset", "words")
+			p:textbox("Words", nil, get, set, ns.Cooldowns.RESET_WORDS_MAX)
+			eslider(p, owner, "Time shown", "How long the words stay before they fade.", Page.secs, nil, "reset", "secs")
+			wordRows(p, owner)
+		end)
+	end
+	soundRow(p, s, "reset", "Sound", "Takes the place of Ready's sound.")
+end
+K.resetBlock = resetBlock
 
 -- active: opts.title, text, on = { label, tip } (its switch, when it has one), extra(s, p) (rows under
 -- its glow), soundBadge (an experimental badge under its sound: the feature's name); shown with a text
@@ -1324,7 +1381,14 @@ end)
 K.registerSlot("warn", function(p, def, o) K.warnBlock(p, def.key, o) end)
 K.registerSlot("cast", function(p, def) K.castBlocks(p, def.key) end)
 K.registerSlot("ready", function(p, def, o) K.readyBlock(p, def.key, o) end)
+K.registerSlot("reset", function(p, def) K.resetBlock(p, def) end)
 K.registerSlot("active", function(p, def, o) K.activeBlock(p, def.key, o) end)
+-- buffBar: a cooldown's bar for a buff of yours (def.buffBar), its switch the element's buffBar
+K.registerSlot("buffBar", function(p, def, o)
+	p:header(o.title)
+	p:checkbox("Time left bar", o.text, eopt(p, def.key, "buffBar"))
+	p:text("Not learned yet.", showWhen(o.unlearned))
+end)
 K.registerSlot("expire", function(p, def, o) K.expiringBlock(p, def.key, o) end)
 K.registerSlot("killed", function(p, def, o) K.killedBlock(p, def.key, o) end)
 K.registerSlot("cooldown", function(p, def, title) K.timerSettings(p, title, def.key, "cooldown") end, true)

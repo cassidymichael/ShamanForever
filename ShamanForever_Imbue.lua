@@ -104,6 +104,14 @@ local function imbueKeyFor(w)
 	end
 end
 
+-- The main hand's imbue: its key, "unknown" for one not recognised, false for none, nil when it can't
+-- be read
+function IM.mainHand()
+	local r = readMainHand()
+	if not r then return r end
+	return imbueKeyFor(r) or "unknown"
+end
+
 local NO_IMBUE = { 0.7, 0.7, 0.7 }
 function IM.barColor()
 	local r = readMainHand()
@@ -160,9 +168,9 @@ local function drawImbue(now, quiet)
 		imbue.upTimer:clear()
 	end
 	-- Idle fades by alpha, not Hide (keeps its place)
-	local when = own("idleWhen")
+	local when = E.idleWhen("imbue")
 	local idle = P.getAccount().locked and on and (when == "on" or (when == "notlow" and not showTime))
-	W.fadeTo(imbue, idle and E.idleAlpha("imbue") or 1)
+	E.fade("imbue", idle and E.idleAlpha("imbue") or 1)
 end
 
 local function drawNotLearned()
@@ -171,7 +179,7 @@ local function drawNotLearned()
 	imbue:SetWarnParts(true, false, false, false, false)
 	imbue.timer:Hide()
 	imbue.upTimer:clear()
-	W.fadeTo(imbue, 1)
+	E.fade("imbue", 1)
 end
 
 function IM.refresh()
