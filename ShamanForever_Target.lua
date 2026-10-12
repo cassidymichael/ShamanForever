@@ -121,7 +121,7 @@ ns.registerPart("missing", {
 		states = { { "missing", "Not on target", 30 } },
 		render = function(ic, st, def, kit)
 			if st == "missing" then ic:SetWarnParts(W.warnParts(def.key, "warn")) end
-			if (st == "up" or st == "expiring") and setting(def.key, "idleWhen") == "target" then
+			if (st == "up" or st == "expiring") and E.idleWhen(def.key) == "target" then
 				kit.idle(ic, def.key)
 			end
 		end,
@@ -588,14 +588,14 @@ local function checkAll()
 end
 
 local function frameAlpha(def)
-	local idles = def.spellID and P.getAccount().locked and setting(def.key, "idleWhen") ~= "never"
+	local idles = def.spellID and P.getAccount().locked and E.idleWhen(def.key) ~= "never"
 	return idles and E.idleAlpha(def.key) or 1
 end
 
 local function applyIdle(def)
 	if not def.idle then return end
 	local on = E.inUse(def.key) and P.getAccount().locked
-		and setting(def.key, "idleWhen") == "target"
+		and E.idleWhen(def.key) == "target"
 	def.idle:SetAlpha(on and E.idleAlpha(def.key) or 1)
 end
 

@@ -298,7 +298,7 @@ local function refresh()
 	if want then
 		why = targetListed and "target" or next(plates) and "nameplate" or feared and "on you" or "just after"
 	end
-	local busy = want or not P.getAccount().locked or (out and own("idleWhen") == "notdown")
+	local busy = want or not P.getAccount().locked or (out and E.idleWhen(KEY) == "notdown")
 	-- Woken first, at once as a warning starts: its pop plays at the awake alpha
 	E.fade(KEY, busy and 1 or E.idleAlpha(KEY), want and not alerting)
 	setAlert(want)
@@ -506,7 +506,7 @@ local PREVIEW = {
 		end
 		if st == "down" then
 			kit.frozen(ic.upT, 0.3, 300)
-			if own("idleWhen") == "notdown" then return end
+			if E.idleWhen(KEY) == "notdown" then return end
 		end
 		kit.idle(ic, KEY)
 	end,
