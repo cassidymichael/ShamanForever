@@ -112,8 +112,9 @@ PREVIEW = {
 		local items = math.min(POP_ITEMS, 1 + #known)
 		local popLen = TB.popLength(items, psz)
 		local seq, along, line = TB.along(math.max(#places, 1), size)
-		local badge = st == "offpick" and c.offPick
-			and TB.badgeSize(size) + TB.skin.badgeGap(size) or 0
+		-- Room on the side away from the pickers: the badge, or a mark beside the slots
+		local badge = st == "offpick" and c.offPick and TB.badgeSize(size) + TB.skin.badgeGap(size, h.barFrame)
+			or st == "range" and TB.range.band(h.barFrame) and TB.skin.beside(size, h.barFrame).reach or 0
 		local across = line + (picking and (c.arrowSize + 4 + popLen) or 0) + badge
 		local w = h:GetWidth()
 		if not w or w <= 0 then w = 600 end
@@ -194,11 +195,11 @@ PREVIEW = {
 				if st == "range" and c.range and not marked and (pickID == nil or TB.range.covers(el, pickID)) then
 					marked = true
 					local f = ic.rangeF
-					local x, y, mw, mh = TB.range.rect(ic, size, o)
+					local x, y, mw, mh, kind = TB.range.rect(ic, size, o)
 					f:ClearAllPoints()
 					f:SetPoint("TOPLEFT", ic.box, "TOPLEFT", x, y)
 					f:SetSize(mw, mh)
-					TB.range.paint(f)
+					TB.range.paint(f, kind)
 					f:Show()
 				end
 				TB.paintLow(ic, st == "mana" and i == 1 and TB.feat("cast") and c.mana.on == true)
@@ -549,6 +550,14 @@ local function build(p)
 	p:sub(range, tget("range"), function()
 		tslider("Height", "In pixels.", px, "rangeHeight")
 		p:color("Colour", "Colour and opacity.", tget("rangeOut"), tset("rangeOut"))
+		local place = p:dropdown("Place", "Beside: on the side away from the pickers.",
+			{ { "in", "In the icon" }, { "out", "Beside the icon" } }, tget("rangePlace"), tset("rangePlace"), nil, 190)
+		p:sub(place, function() return c().rangePlace == "out" end, function()
+			tslider("Distance", "From the icon or the time bar.", px, "rangeGap")
+			p:dropdown("Order", nil, { { "after", "Time bar nearer the icon" }, { "before", "Mark nearer the icon" } },
+				tget("rangeOrder"), tset("rangeOrder"), function() return TB.skin.place("barPlace") == "out"
+					and ns.Style.value("totembar", "uptime", "bar") == true end, 240)
+		end)
 		p:text("It can take a few seconds to show you've left range as the buff lingers.")
 	end)
 
@@ -649,7 +658,7 @@ local function build(p)
 	p.gate = full
 	K.gcdBlock(p, "totembar")
 	p.gate = TB.barOn
-	local function beside() return TB.skin.barPlace() == "out" end
+	local function beside() return TB.skin.place("barPlace") == "out" end
 	K.timerSettings(p, "Time left", "totembar", "uptime", changed, nil, nil, beside)
 	p:dropdown("Time bar position", "Beside the icon: on the side away from the pickers.",
 		{ { "in", "In the icon" }, { "out", "Beside the icon" } }, tget("barPlace"), tset("barPlace"),

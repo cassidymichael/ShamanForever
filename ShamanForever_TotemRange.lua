@@ -97,19 +97,40 @@ end
 -- bottom while the time bar runs along the top. Its rect from the slot box's top left.
 local function timeBarOnTop()
 	local S = ns.Style
-	return TB.skin.barPlace() ~= "out" and S.value("totembar", "uptime", "bar") == true
+	return TB.skin.place("barPlace") ~= "out" and S.value("totembar", "uptime", "bar") == true
 		and S.value("totembar", "uptime", "barEdge") == "top"
 end
+
+-- Beside the icon: the mark's gap from what's inside it and its thickness (f: a frame at the slot's
+-- scale), or nil
+function RG.band(f)
+	if not P.getDB() then return nil end
+	local c = TB.cfg()
+	if not c.range or TB.skin.place("rangePlace") ~= "out" then return nil end
+	return c.rangeGap, W.linePx(f, c.rangeHeight)
+end
+
+-- Beside the icon: along the edge of the slot's look (as the time bar), at its place in TB.skin.beside
 function RG.rect(v, size, inset)
+	local c = TB.cfg()
+	if TB.skin.place("rangePlace") == "out" then
+		local at = TB.skin.beside(size, v)
+		local off, h, len = at.mark or c.rangeGap, W.linePx(v, c.rangeHeight), size - 2 * inset
+		if at.side == "below" then return inset, -(size + off), len, h, "stripOut" end
+		if at.side == "above" then return inset, off + h, len, h, "stripOut" end
+		if at.side == "left" then return -(off + h), -inset, h, len, "stripOut" end
+		return size + off, -inset, h, len, "stripOut"
+	end
 	local d = inset + ns.StyleArt.pictureInset(v) + TB.skin.dressInset(v, size - 2 * inset)
-	local w, h = size - 2 * d, W.linePx(v, TB.cfg().rangeHeight)
-	return d, timeBarOnTop() and -(size - d - h) or -d, w, h
+	local w, h = size - 2 * d, W.linePx(v, c.rangeHeight)
+	return d, timeBarOnTop() and -(size - d - h) or -d, w, h, "strip"
 end
 
 local previewOn = false
 local events   -- set(on): UNIT_AURA, while the mark is in use (RG.start)
 
--- A mark: its texture in the picture's shape (v, the slot's look or the options header's icon)
+-- A mark: a texture for each place, shown by RG.paint; in the icon (bg), in the picture's shape (v: the
+-- slot's look or the options header's icon)
 local function newMark(parent, v, lv)
 	local m = CreateFrame("Frame", nil, parent)
 	m:SetFrameLevel(lv)
@@ -121,10 +142,27 @@ local function newMark(parent, v, lv)
 end
 RG.newMark = newMark
 
--- The player's out of range colour on a mark
-function RG.paint(m)
-	local k = TB.cfg().rangeOut
-	m.bg:SetColorTexture(k[1], k[2], k[3], k[4] or 1)
+-- kind (from RG.rect): which texture shows
+local KINDS = { "strip", "stripOut" }
+local function texture(m, kind)
+	if kind == "strip" then return m.bg end
+	if not m[kind] then
+		m[kind] = m:CreateTexture(nil, "ARTWORK")
+		m[kind]:SetAllPoints()
+	end
+	return m[kind]
+end
+
+-- The player's out of range colour on the mark's texture for kind (default: the last)
+function RG.paint(m, kind)
+	m.drawn = kind or m.drawn or "strip"
+	for _, key in ipairs(KINDS) do
+		local t = key == "strip" and m.bg or m[key]
+		if t and key ~= m.drawn then t:Hide() end
+	end
+	local t, k = texture(m, m.drawn), TB.cfg().rangeOut
+	t:SetColorTexture(k[1], k[2], k[3], k[4] or 1)
+	t:Show()
 end
 
 -- Whether id (a totem down or picked) buffs you, so has a mark
@@ -157,7 +195,7 @@ end
 -- mark keeps its rows at a fractional scale)
 local function place(s, size)
 	local g, m = s.outGate, s.rangeMark
-	local x, y, w, h = RG.rect(s.vis, size, s.inset or 0)
+	local x, y, w, h, kind = RG.rect(s.vis, size, s.inset or 0)
 	local e = W.AURA_GATE_EDGE
 	local cw, ch = w + e + 1, h + 2
 	g.cell:ClearAllPoints()
@@ -165,7 +203,7 @@ local function place(s, size)
 	m:ClearAllPoints()
 	m:SetPoint("TOPLEFT", g.area, "TOPLEFT", e, -1)
 	m:SetSize(w, h)
-	RG.paint(m)
+	RG.paint(m, kind)
 	g:resize(cw, ch, string.format("%.3f:%.3f", cw, ch))
 end
 
@@ -398,11 +436,11 @@ function RG.standIn(s, on, size)
 		m:SetAlpha(1)
 		s.rangeStandIn = m
 	end
-	local x, y, w, h = RG.rect(s.vis, size, s.inset or 0)
+	local x, y, w, h, kind = RG.rect(s.vis, size, s.inset or 0)
 	m:ClearAllPoints()
 	m:SetPoint("TOPLEFT", s.button, "TOPLEFT", x, y)
 	m:SetSize(w, h)
-	RG.paint(m)
+	RG.paint(m, kind)
 	m:Show()
 end
 

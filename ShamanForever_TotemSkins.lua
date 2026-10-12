@@ -290,20 +290,41 @@ function TH.spacing(size)
 	return size * share, size * (o.extrasGapShare or share)
 end
 
-function TH.barPlace()
-	if TH.owns("barPlace") or not P.getDB() then return "in" end
-	return TB.cfg().barPlace
+-- "in" or "out" (beside the icon): field is barPlace or rangePlace; "in" where the theme owns it
+function TH.place(field)
+	if TH.owns(field) or not P.getDB() then return "in" end
+	return TB.cfg()[field]
 end
 
+-- Beside a slot, on the side away from the pickers, from its edge outward: the time bar and the out of
+-- range mark in the player's order, each after its own gap, then the badge. From settings only, so
+-- nothing moves when a mark lights. f: a frame at the slot's scale. Returns side, and the time bar's
+-- and the mark's offsets (nil when not beside) and the reach past both.
+local AWAY = { up = "below", down = "above", right = "left", left = "right" }
 local function outGap(size) return math.max(math.floor(size * 3 / W.BASE_ICON_SIZE + 0.5), 2) end
-local function outReach(size)
-	if TH.barPlace() ~= "out" or not ns.Style.value("totembar", "uptime", "bar") then return 0 end
-	return outGap(size) + ns.Style.value("totembar", "uptime", "barHeight")
+function TH.beside(size, f)
+	local parts = {}
+	if TH.place("barPlace") == "out" and ns.Style.value("totembar", "uptime", "bar") then
+		parts.bar = { outGap(size), ns.Style.value("totembar", "uptime", "barHeight") }
+	end
+	local gap, thick = TB.range.band(f)
+	if gap then parts.mark = { gap, thick } end
+	local order = P.getDB() and TB.cfg().rangeOrder == "before" and { "mark", "bar" } or { "bar", "mark" }
+	local out, d = { side = AWAY[TB.eff().pop] }, 0
+	for _, k in ipairs(order) do
+		local p = parts[k]
+		if p then
+			out[k] = d + p[1]
+			d = d + p[1] + p[2]
+		end
+	end
+	out.reach = d
+	return out
 end
 
-function TH.badgeGap(size)
-	local f = TH.current().badgeGap
-	return (f and f(size) or 0) + outReach(size)
+function TH.badgeGap(size, f)
+	local g = TH.current().badgeGap
+	return (g and g(size) or 0) + TH.beside(size, f).reach
 end
 
 -- Drawing: each call draws the look picked now, or takes down what another look drew
@@ -529,7 +550,6 @@ local function tip(t, on)
 	x:Show()
 end
 
-local AWAY = { up = "below", down = "above", right = "left", left = "right" }
 local function outsideBar(t, anchor, size, on)
 	local bar = t.bar
 	if not on then
@@ -542,9 +562,10 @@ local function outsideBar(t, anchor, size, on)
 	end
 	bar.sfOutside = true
 	local _, border = TB.look()
-	local d = ns.StyleArt.inset(anchor, border, size) + outGap(size)
+	local at = TH.beside(size, anchor)
+	local d = ns.StyleArt.inset(anchor, border, size) + at.bar
 	local thick = ns.Style.value("totembar", "uptime", "barHeight")
-	local side = AWAY[TB.eff().pop]
+	local side = at.side
 	bar:ClearAllPoints()
 	if side == "below" or side == "above" then
 		local y = side == "below" and -d or d
@@ -567,7 +588,7 @@ end
 
 function TH.styleTimer(t, anchor, size)
 	if not (t and t.bar) then return end
-	local out = TH.barPlace() == "out"
+	local out = TH.place("barPlace") == "out"
 	outsideBar(t, anchor, size, out)
 	tip(t, not out and TH.current().timeBar == "tip")
 end

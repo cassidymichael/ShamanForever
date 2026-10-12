@@ -74,6 +74,9 @@ TB.DEFAULTS = {
 	range = true,
 	rangeHeight = 7,
 	rangeOut = { 0.9, 0.12, 0.08, 1 },
+	rangePlace = "in",   -- in | out (beside the icon)
+	rangeGap = 3,   -- beside: from what's inside it
+	rangeOrder = "after",   -- beside: the mark after (past) the time bar, or before it
 	pickHover = true,
 	skin = "default",
 	pixelTray = true,
@@ -93,13 +96,15 @@ local RANGES = {
 	extrasGap = { -10, 30, 1 }, extrasSpacing = { -10, 20, 1 },
 	idleAlpha = { 0.1, 1, 0.05 }, badgeSize = { 0.25, 0.8, 0.05 }, badgeAlpha = { 0.1, 1, 0.05 },
 	badgeSat = { 0, 1, 0.05 }, badgeX = { -30, 30, 1 }, badgeY = { -30, 30, 1 }, rangeHeight = { 1, 12, 1 },
+	rangeGap = { 0, 20, 1 },
 	fadeAfter = { 0, 10, 1 }, keySize = { 6, 30, 1 }, keyX = { -20, 20, 1 }, keyY = { -20, 20, 1 },
 	pixelEdge = { 1, 4, 1 },
 	expire = { secs = EXPIRE_SECS },
 }
 TB.RANGES = RANGES
 local CHOICES = { mode = { "blizzard", "active", "everything" }, show = { "always", "active", "combat", "target" },
-	barPlace = { "in", "out" }, setSwitch = { "popout", "cycle" }, stonePlinth = { "slim", "normal", "grand" } }
+	barPlace = { "in", "out" }, setSwitch = { "popout", "cycle" }, stonePlinth = { "slim", "normal", "grand" },
+	rangePlace = { "in", "out" }, rangeOrder = { "after", "before" } }
 local function clamp(v, r) return math.min(math.max(v, r[1]), r[2]) end
 
 local EXPIRE_OVER = { earthbind = 5, stoneclaw = 5, manaTide = 3 }
@@ -305,7 +310,7 @@ function TB.layoutBadge(bd, anchor, size, border)
 	bd:SetAlpha(c.badgeAlpha)
 	TB.saturate(bd.icon, c.badgeSat)
 	bd:ClearAllPoints()
-	local gap = inset + TB.skin.badgeGap(size)
+	local gap = inset + TB.skin.badgeGap(size, anchor)
 	local x, y = c.badgeX, c.badgeY
 	if c.pop == "up" then bd:SetPoint("TOP", anchor, "BOTTOM", x, y - gap)
 	elseif c.pop == "down" then bd:SetPoint("BOTTOM", anchor, "TOP", x, y + gap)
@@ -1344,6 +1349,8 @@ function TB.applyTimers()
 		s.timer:apply()
 		TB.skin.styleTimer(s.timer, s.vis, size)
 	end
+	-- A mark beside the slots keeps its place past a resized time bar
+	if not ns.inCombat() and TB.range.band(bar) then TB.range.layout(size) end
 	-- Off clears the sweep; on, the next cast shows it (a refresh here could cut one short)
 	if not ns.Style.value("totembar", "gcd", "show") then refreshGCD() end
 end
