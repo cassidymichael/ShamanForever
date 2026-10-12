@@ -279,12 +279,13 @@ local function setUpShield(key)
 	SH.applyEmptyLook()
 end
 
--- Water Shield's buff may be the client's second copy of the spell: both count
+-- Water Shield's buff may be the client's second copy of the spell: both count. Only IDs this module
+-- vouched for: Spells.ids also takes any spell sharing the name (the bolts Lightning Shield fires)
 local function shieldIDMap()
 	local map = {}
 	for key, s in pairs(SHIELDS) do
 		if tracksShield(key) then
-			for id in pairs(Spells.ids(s.spell)) do map[id] = true end
+			for id in pairs(s.castIDs) do map[id] = true end
 		end
 	end
 	if tracksShield("water") then
