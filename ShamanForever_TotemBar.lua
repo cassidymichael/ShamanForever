@@ -794,7 +794,7 @@ function TB.paintLow(v, low)
 		v.lowOver = v:CreateTexture(nil, "ARTWORK", nil, 2)
 		v.lowOver:SetAllPoints(v.icon)
 		ns.StyleArt.followMask(v, v.lowOver)
-		v.lowRing = W.makeRing(v.textFrame or v, v.icon)
+		v.lowRing = W.makeRing(v.textFrame or v.art or v, v.icon)
 		-- The picture's shape, inside its border's frame
 		for _, e in ipairs(v.lowRing.edges) do ns.StyleArt.maskOver(v, e, v.icon) end
 	end
