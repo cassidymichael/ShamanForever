@@ -499,7 +499,6 @@ function FX.pop(f, kind, owner)
 		end
 	end
 	local all = f.popRig.length
-	f.popEnds = GetTime() + all
 	if f.holdAwake then f.holdAwake(all) end
 	return all
 end

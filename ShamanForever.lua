@@ -233,20 +233,8 @@ function E.newIcon(key, opts)
 		f.idleLayer:SetAllPoints()
 		f.idleLayer:SetFrameLevel(f.effects:GetFrameLevel())
 		f.glowF:SetParent(f.idleLayer)
-		f.popLayer = CreateFrame("Frame", nil, f.effects)
-		f.popLayer:SetAllPoints()
+		W.popLayer(f, f.effects, function() return 1 end, function() return W.fadeTarget(f.idleLayer) end)
 		f.popLayer:SetFrameLevel(f.effects:GetFrameLevel())
-		function f.holdAwake(secs)
-			local ends = GetTime() + secs
-			if f.awakeUntil and f.awakeUntil >= ends then return end
-			f.awakeUntil = ends
-			W.fadeTo(f.popLayer, 1)
-			C_Timer.After(secs, function()
-				if f.awakeUntil ~= ends then return end
-				f.awakeUntil = nil
-				W.fadeLike(f.popLayer, f.idleLayer, E.idleFade())
-			end)
-		end
 		f.keep, f.keepOut = {}, {}
 		-- The holder of the part idleKeep[field] keeps: made once, a plain frame beside the idle layer
 		function f.keepHolder(field)

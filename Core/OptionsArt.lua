@@ -123,6 +123,13 @@ local function makePreviewIcon(parent, key, preview, box)
 		ic.cdT = ns.Timer.new(ic, key, "cooldown", { cd = ic.cd, school = school, box = box, column = column,
 			placeOut = out })
 	end
+	-- Pops play in full over a resting icon, as on the HUD
+	local hud = type(key) == "string" and E.ALL[key] and E.ALL[key].frame
+	if hud and hud.popLayer then
+		local layer = W.popLayer(ic, ic, function() return parent:GetAlpha() end,
+			function() return W.fadeTarget(ic) * parent:GetAlpha() end)
+		ns.ignoreParentAlpha(layer, true)
+	end
 	-- What the player may keep in full over an idle icon is drawn on a frame over it (the HUD's keep holders)
 	if preview.keeps then
 		ic.keepOver = CreateFrame("Frame", nil, parent)
@@ -245,6 +252,7 @@ function OA.holdersAlpha(ic, a, key, st, ease)
 		return a < 1 and field ~= nil and E.setting(key, "idleKeep", field) == true
 	end
 	if ic.keepOver then put(ic.keepOver, kept(pv and pv.keeps and pv.keeps[st]) and 1 or a) end
+	if ic.popLayer and not ic.awakeUntil then put(ic.popLayer, a * ic:GetParent():GetAlpha()) end
 	for field, frames in pairs(ic.keepFrames or {}) do
 		for _, f in ipairs(frames) do put(f, kept(field) and 1 or a) end
 	end
@@ -254,8 +262,6 @@ function OA.fadeIcon(ic, key, st, a, ease)
 	W.fadeTo(ic, a, ease and E.idleFade() or nil)
 	OA.holdersAlpha(ic, a, key, st, ease)
 end
--- A pop still playing on a preview icon: it rests once the pop ends, as the HUD's pop plays in full
-function OA.popping(ic) return ic.popEnds ~= nil and GetTime() < ic.popEnds end
 local function idleLook(ic, key, st) OA.fadeIcon(ic, key, st, OA.idleAlpha(key)) end
 -- Whether a state goes idle once its moment has played (the preview's own rule)
 function OA.idles(key, st)
@@ -270,7 +276,6 @@ local function idleSoon(ic, key, st)
 	ic.idleToken = token
 	local function rest()
 		if ic.idleToken ~= token or previewState[key] ~= st then return end
-		if OA.popping(ic) then C_Timer.After(ic.popEnds - GetTime(), rest) return end
 		OA.fadeIcon(ic, key, st, OA.idleAlpha(key), true)
 	end
 	C_Timer.After(E.idleAfter(), rest)

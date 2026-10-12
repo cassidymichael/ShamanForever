@@ -199,7 +199,7 @@ local ticker = ns.ticker(0.1, function()
 	for key, r in pairs(runs) do
 		if r.live and r.nextAt then
 			if now >= r.nextAt then ns.try("preview step", advance, key, r)
-			elseif r.idleAt and now >= r.idleAt and not OA.popping(standIns[key]) then
+			elseif r.idleAt and now >= r.idleAt then
 				r.idleAt = nil
 				OA.fadeIcon(standIns[key], key, r.steps[r.i][1], OA.idleAlpha(key), true)
 			end

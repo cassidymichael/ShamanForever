@@ -140,9 +140,26 @@ function W.fadeTo(f, alpha, secs)
 	fading[f], rates[f] = alpha, (a - alpha) / secs
 	fader:Show()
 end
--- f falls to where other is going over secs
-function W.fadeLike(f, other, secs)
-	W.fadeTo(f, fading[other] or other:GetAlpha(), secs)
+-- Where f is going: the end of its running fall, else its alpha
+function W.fadeTarget(f) return fading[f] or f:GetAlpha() end
+-- f's pop layer under parent: f.holdAwake(secs) holds it at awake() while a pop plays, then it falls to
+-- rest() over Idle fade
+function W.popLayer(f, parent, awake, rest)
+	local layer = CreateFrame("Frame", nil, parent)
+	layer:SetAllPoints()
+	f.popLayer = layer
+	function f.holdAwake(secs)
+		local ends = GetTime() + secs
+		if f.awakeUntil and f.awakeUntil >= ends then return end
+		f.awakeUntil = ends
+		W.fadeTo(layer, awake())
+		C_Timer.After(secs, function()
+			if f.awakeUntil ~= ends then return end
+			f.awakeUntil = nil
+			W.fadeTo(layer, rest(), ns.Elements.idleFade())
+		end)
+	end
+	return layer
 end
 
 -- Screen-pixel lines

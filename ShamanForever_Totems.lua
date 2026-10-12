@@ -190,7 +190,7 @@ end
 -- The preview's end flash; secs: when the cooldown its end started shows (none: it doesn't)
 local function previewEnd(ic, def, kit, st, opts, secs)
 	if opts then
-		if not ic.endFlash then ic.endFlash = ns.Effects.endFlash(ic, ic, def.key) end
+		if not ic.endFlash then ic.endFlash = ns.Effects.endFlash(ic.popLayer or ic, ic, def.key) end
 		ic.endFlash:setIcon(def.iconID or def.icon)
 		ic.endFlash:play(nil, opts)
 	end
