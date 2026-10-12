@@ -88,14 +88,62 @@ ns.registerPart("readyGlow", { defaults = { ready = { glow = false }, idleKeep =
 	idle = { keep = { "ready", "Ready glow", GLOW_ONLY } }, preview = { keeps = { ready = "ready" } } })
 -- reset = { talent }: a Reset event (the cooldown ends early, by that talent), and its ready then.
 -- Its pop and sound take the place of Ready's when it plays; the pop has a style of its own, which an
--- element ships different from its Pop style (resetpop); experimental
+-- element ships different from its Pop style (resetpop); its text is the player's words by the icon for a
+-- set time (the word's look: W.WORD's settings); experimental
 local RESET_POP = { colorBy = "event", flash = "plain", burst = "star", motion = "bounce", size = 1.6, speed = 1,
 	reach = 1 }
+local RESET_WORDS, RESET_WORDS_MAX, WORD_FADE = "Reset!", 24, 0.2
+CD.RESET_WORDS, CD.RESET_WORDS_MAX = RESET_WORDS, RESET_WORDS_MAX
+local function resetWords(key)
+	local words = setting(key, "reset", "words")
+	words = type(words) == "string" and words:gsub("^%s+", ""):gsub("%s+$", "") or ""
+	return words ~= "" and ns.utf8Cut(words, RESET_WORDS_MAX) or RESET_WORDS
+end
+-- The words on the icon for secs, then fading out; a new show restarts them
+local function showWord(f, key, secs)
+	local host, token = f.resetHost, {}
+	f.resetToken = token
+	f.resetWord:SetText(resetWords(key))
+	W.styleWord(f.resetWord, f, E.settingsOf(key))
+	W.fadeTo(host, 1)
+	host:Show()
+	C_Timer.After(secs, function()
+		if f.resetToken ~= token then return end
+		W.fadeTo(host, 0, WORD_FADE)
+		C_Timer.After(WORD_FADE, function()
+			if f.resetToken == token then host:Hide() end
+		end)
+	end)
+	if f.holdAwake then f.holdAwake(secs + WORD_FADE) end
+end
+local function resetDefaults()
+	local d = { reset = { pop = true, text = false, words = RESET_WORDS, secs = 1.5, sound = "none" } }
+	for name, v in pairs(W.WORD.defaults) do d[name] = type(v) == "table" and CopyTable(v) or v end
+	return d
+end
 ns.registerPart("reset", {
 	kind = "cooldown", experiment = "Reset",
-	defaults = { reset = { pop = true, sound = "none" } },
+	defaults = resetDefaults,
+	ranges = function()
+		local r = { reset = { secs = { 0.5, 3, 0.1 } } }
+		for name, v in pairs(W.WORD.ranges) do r[name] = v end
+		return r
+	end,
+	choices = W.WORD.choices,
 	styles = { resetpop = RESET_POP },
 	page = { reset = {} },
+	runtime = {
+		make = function(def, f)
+			f.resetHost = CreateFrame("Frame", nil, f.popLayer)
+			f.resetHost:SetAllPoints(f)
+			f.resetHost:Hide()
+			f.resetWord = f.resetHost:CreateFontString(nil, "OVERLAY")
+			ns.Media.setFont(f.resetWord, nil, 16)
+		end,
+		debug = function(def)
+			return def.resetKnown and "reset known" or "reset (talent not learned)"
+		end,
+	},
 })
 -- Low mana: a pulsing glow while it's ready and your mana is under a percentage. Mana is secret even
 -- out of combat: its percent goes through a curve straight into an alpha, and nothing else reads it
@@ -548,6 +596,16 @@ local function soundWhenReady(f, key, gate)
 end
 CD.soundWhenReady = soundWhenReady
 
+-- Text at a Reset
+local function textWhenReset(f, key)
+	onReady(f, function()
+		if not CD.resetNow(f) then return end
+		if not (E.isEnabled(key) and setting(key, "reset", "text") == true) or ns.cantAct() then return end
+		E.fade(key, 1)
+		showWord(f, key, setting(key, "reset", "secs"))
+	end)
+end
+
 for _, def in ipairs(COOLDOWNS) do
 	def.refresh = refreshCooldown
 	local function gate()
@@ -558,6 +616,7 @@ for _, def in ipairs(COOLDOWNS) do
 	popWhenReady(def.frame, def.key, gate)
 	soundWhenReady(def.frame, def.key, gate)
 	def.frame.ready.atReset = def.reset ~= nil or nil
+	if def.reset then textWhenReset(def.frame, def.key) end
 	-- The swipe's end, and the spell's own (the time bar's), which can end inside a GCD
 	for _, cd in ipairs({ def.frame.cd, def.frame.ownCd }) do
 		cd:HookScript("OnCooldownDone", function() C_Timer.After(0, function() refreshCooldown(def) end) end)

@@ -24,36 +24,23 @@ local tremorSpells = {}
 local own = E.settingsOf(KEY)
 local plain = ns.plain
 
-local WORD_POINTS = { below = { "TOP", "BOTTOM", -4 }, above = { "BOTTOM", "TOP", 4 },
-	center = { "CENTER", "CENTER", 0 } }
-local WORD_COLOR = { 1, 0.82, 0, 1 }
-local function num(name, fallback)
-	local v = own(name)
-	if type(v) ~= "number" or v ~= v then return fallback end
-	return v
-end
-local function styleWord(fs, icon)
-	local pt = WORD_POINTS[own("wordPos")] or WORD_POINTS.below
-	W.placeScaledText(fs, icon, num("wordSize", 16), pt[1], num("wordX", 0), pt[3] + num("wordY", 0), pt[2])
-	local c = own("wordColor")
-	if not ns.isColor(c) then c = WORD_COLOR end
-	fs:SetTextColor(c[1], c[2], c[3], c[4] or 1)
-end
+local function styleWord(fs, icon) W.styleWord(fs, icon, own) end
 
 local def = { key = KEY, spellKey = "tremor", icon = 136108, school = "earth", duration = 300, readsTotems = true,
 	defaults = { idleAlpha = 0, idleWhen = "nowarning", tremorTarget = true, tremorPlates = true, tremorFeared = false,
 		active = { pop = true, glow = true, text = true, sound = "none" },
-		wordSize = 16, wordColor = CopyTable(WORD_COLOR), wordPos = "below", wordX = 0, wordY = 0,
 		mana = { on = true } },
-	ranges = { wordSize = { 8, 40, 1 }, wordX = { -100, 100, 1 }, wordY = { -100, 100, 1 } },
+	ranges = {},
 	-- Its page's Idle: value, name, sentence, tip
 	idleChoices = {
 		{ "nowarning", "No warning", "Idle while nothing warns", "No warning: also while your Tremor Totem is down." },
 		{ "notdown", "Totem not down and no warning", "Idle while nothing warns",
 			"Totem not down and no warning: its time left shows while it's down." },
 	},
-	choices = { wordPos = {} } }
-for pos in pairs(WORD_POINTS) do table.insert(def.choices.wordPos, pos) end
+	choices = {} }
+for name, v in pairs(W.WORD.defaults) do def.defaults[name] = type(v) == "table" and CopyTable(v) or v end
+for name, r in pairs(W.WORD.ranges) do def.ranges[name] = r end
+def.choices.wordPos = W.WORD.choices.wordPos
 def.spell = Spells.name(def.spellKey)
 def.icon = Spells.icon(def.spellKey) or def.icon
 

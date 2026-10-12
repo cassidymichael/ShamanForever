@@ -1108,6 +1108,18 @@ local function badgeRow(p, feature)
 	p:add(f, 22)
 end
 
+-- The rows of a word by an icon (W.styleWord's settings, declared by W.WORD)
+local function wordRows(p, key, shown)
+	local posGet, posSet = eopt(p, key, "wordPos")
+	p:dropdown("Position", nil, ns.Widgets.WORD.positions, posGet, posSet, shown, 160)
+	eslider(p, key, "Text size", "At the default icon size; it grows with the icon.", int, shown, "wordSize")
+	local colorGet, colorSet = eopt(p, key, "wordColor")
+	p:color("Text colour", nil, colorGet, colorSet, shown)
+	eslider(p, key, "Text X offset", nil, px, shown, "wordX")
+	eslider(p, key, "Text Y offset", nil, px, shown, "wordY")
+end
+K.wordRows = wordRows
+
 -- reset: a cooldown's early end by a talent (def.reset.talent). Its pop and sound take the place of
 -- Ready's when it plays.
 local function resetBlock(p, def)
@@ -1120,6 +1132,15 @@ local function resetBlock(p, def)
 	local talent = ns.Spells.name(def.reset.talent)
 	p:text("Needs " .. talent .. ".", showWhen(function() return not def.resetKnown end))
 	check(p, s, "reset", "pop", "Pop", "Takes the place of Ready's pop.", nil, "resetpop")
+	local text = check(p, s, "reset", "text", "Text", "Shows your words by the icon for a moment.")
+	if text then
+		p:sub(text, s.get("reset", "text"), function()
+			local get, set = s.opt("reset", "words")
+			p:textbox("Words", nil, get, set, ns.Cooldowns.RESET_WORDS_MAX)
+			eslider(p, owner, "Time shown", "How long the words stay before they fade.", Page.secs, nil, "reset", "secs")
+			wordRows(p, owner)
+		end)
+	end
 	soundRow(p, s, "reset", "Sound", "Takes the place of Ready's sound.")
 end
 K.resetBlock = resetBlock

@@ -120,7 +120,8 @@ function KD.get(kind) return KINDS[kind] end
 --                     { [kind] = { after } } for several
 --   has(def)          whether def has it; without it the part's name doubles as the row flag:
 --                     def[name] set (not nil or false) means it has it
---   defaults, ranges  its settings' defaults and { min, max, step } (the shapes: _Profiles)
+--   defaults, ranges  its settings' defaults and { min, max, step } (the shapes: _Profiles); choices, the
+--                     values a named setting may take (as an element's)
 --   glow, pop         whether it adds a pulsing glow or a pop (its page then offers their style
 --                     blocks)
 --   idle              words for the Idle block: choices ({ value, label, text, tip, counts };
@@ -272,6 +273,12 @@ local function finishOne(e)
 		if d then ns.Profiles.fillParts(e.defaults, d) end
 		local r = value(p.ranges, def)
 		if r then ns.Profiles.fillParts(e.ranges, r) end
+		local c = value(p.choices, def)
+		if c then
+			e.choices = e.choices or {}
+			def.choices = e.choices
+			ns.Profiles.fillParts(e.choices, c)
+		end
 		local st = value(p.styles, def)
 		if st then ns.Style.setOwnerDefaults(def.key, st) end
 	end

@@ -76,6 +76,30 @@ function W.placeScaledText(fs, icon, size, point, x, y, relPoint)
 	return px
 end
 
+-- A word by an icon, placed by the owner's settings: wordPos (a key of W.WORD.points), wordSize (at the
+-- default icon size), wordColor, wordX and wordY. W.WORD has their defaults, ranges and choices to declare.
+W.WORD = {
+	points = { below = { "TOP", "BOTTOM", -4 }, above = { "BOTTOM", "TOP", 4 }, center = { "CENTER", "CENTER", 0 } },
+	positions = { { "below", "Below the icon" }, { "above", "Above the icon" }, { "center", "On the icon" } },
+	defaults = { wordSize = 16, wordColor = { 1, 0.82, 0, 1 }, wordPos = "below", wordX = 0, wordY = 0 },
+	ranges = { wordSize = { 8, 40, 1 }, wordX = { -100, 100, 1 }, wordY = { -100, 100, 1 } },
+	choices = { wordPos = { "below", "above", "center" } },
+}
+-- own(name) reads the owner's setting
+function W.styleWord(fs, icon, own)
+	local D = W.WORD.defaults
+	local function num(name)
+		local v = own(name)
+		if type(v) ~= "number" or v ~= v then return D[name] end
+		return v
+	end
+	local pt = W.WORD.points[own("wordPos")] or W.WORD.points.below
+	W.placeScaledText(fs, icon, num("wordSize"), pt[1], num("wordX"), pt[3] + num("wordY"), pt[2])
+	local c = own("wordColor")
+	if not ns.isColor(c) then c = D.wordColor end
+	fs:SetTextColor(c[1], c[2], c[3], c[4] or 1)
+end
+
 function W.makeKeyText(parent)
 	local fs = parent:CreateFontString(nil, "OVERLAY")
 	fs:SetFont(STANDARD_TEXT_FONT, 12, "OUTLINE")

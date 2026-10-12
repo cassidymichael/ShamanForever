@@ -1300,6 +1300,29 @@ function Page:slider(label, tip, minV, maxV, step, fmt, get, set, shown)
 	end)
 end
 
+-- A line of text: set(text) when Enter or leaving the box accepts it, Escape keeps what get() has
+function Page:textbox(label, tip, get, set, maxLetters, shown)
+	local f = self:row(34)
+	f.label = self:label(f, label, tip)
+	local box = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
+	box:SetSize(200, 20)
+	box:SetPoint("LEFT", f, "LEFT", LABEL_W + 6, 0)
+	box:SetAutoFocus(false)
+	box:SetMaxLetters(maxLetters)
+	box:SetFontObject("GameFontHighlight")
+	box:SetScript("OnEnterPressed", box.ClearFocus)
+	box:SetScript("OnEscapePressed", function(b) b:SetText(get() or ""); b:ClearFocus() end)
+	box:SetScript("OnEditFocusLost", function(b)
+		b:HighlightText(0, 0)
+		local text = strtrim(b:GetText())
+		if text ~= get() then set(text) end
+		b:SetText(get() or "")
+	end)
+	return self:add(f, 34, shown, function()
+		if not box:HasFocus() then box:SetText(get() or "") end
+	end)
+end
+
 function Page:dropdown(label, tip, choices, get, set, shown, width, menu)
 	local f = self:row(34)
 	f.label = self:label(f, label, tip)
