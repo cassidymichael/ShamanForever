@@ -216,6 +216,7 @@ _G["BINDING_HEADER_" .. ns.NAME:upper() .. "_GENERAL"] = "General"
 -- parts of the element hang from the idle layer, so Idle fades the whole element. What stays in full
 -- over an idle element hangs from the effects layer itself: a look shown only while the element is awake
 -- (a proc's button, a warning), or a holder (f.keepHolder) of a part the player may keep (idleKeep).
+-- A kept part outside the effects layer puts its own frame in f.keepOut[field]; E.fade treats it as a holder.
 -- f.stack() restates frame levels (W.stackIcon); layoutGroup calls it after regrouping.
 function E.newIcon(key, opts)
 	local f = W.makeIcon(root, DEFAULTS.iconSize, key)
