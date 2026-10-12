@@ -86,7 +86,7 @@ function KD.slots(kind) return listOf(kind, "slots") end
 --   typical, warning   the state /sf preview shows in Preview and in Warnings (else the first)
 --   cooldown, uptime   the timers its icon carries; barInset() lifts the time bar (a bar under it);
 --                      keeps: { state = field }, the states whose looks the player may keep in full
---                      while the icon idles (idleKeep.field); the icon then has ic.over, a frame over it
+--                      while the icon idles (idleKeep.field); the icon then has ic.keepOver, a frame over it
 --                      with its glow, time left and bars, faded to the icon's alpha unless kept
 --   render(ic, st, kit) draws state st on icon ic from scratch, with the preview kit (ns.OptionsArt.kit),
 --                      as the player's settings have it: a look switched off isn't drawn

@@ -125,12 +125,12 @@ local function makePreviewIcon(parent, key, preview, box)
 	end
 	-- What the player may keep in full over an idle icon is drawn on a frame over it (the HUD's keep holders)
 	if preview.keeps then
-		ic.over = CreateFrame("Frame", nil, parent)
-		ic.over:SetAllPoints(ic)
-		ic.glowF:SetParent(ic.over)
+		ic.keepOver = CreateFrame("Frame", nil, parent)
+		ic.keepOver:SetAllPoints(ic)
+		ic.glowF:SetParent(ic.keepOver)
 	end
 	if preview.uptime then
-		local holder = ic.over or ic.textFrame
+		local holder = ic.keepOver or ic.textFrame
 		ic.upT = ns.Timer.new(holder, key, "uptime", { anchor = ic, dual = preview.cooldown,
 			cd = not preview.cooldown and ic.cd or nil, school = school, barInset = preview.barInset, box = box,
 			column = column, placeOut = out })
@@ -235,7 +235,7 @@ local previewState = {}
 
 local FAINT = 0.12
 function OA.idleAlpha(key) return math.max(E.idleAlpha(key), FAINT) end
--- The frames over a preview icon (ic.over, ic.keepFrames[field]) at a, each as the HUD's holder is
+-- The frames over a preview icon (ic.keepOver, ic.keepFrames[field]) at a, each as the HUD's holder is
 function OA.holdersAlpha(ic, a, key, st, ease)
 	local function put(f, v)
 		if ease then W.fadeTo(f, v) else f:SetAlpha(v) end
@@ -244,7 +244,7 @@ function OA.holdersAlpha(ic, a, key, st, ease)
 	local function kept(field)
 		return a < 1 and field ~= nil and E.setting(key, "idleKeep", field) == true
 	end
-	if ic.over then put(ic.over, kept(pv and pv.keeps and pv.keeps[st]) and 1 or a) end
+	if ic.keepOver then put(ic.keepOver, kept(pv and pv.keeps and pv.keeps[st]) and 1 or a) end
 	for field, frames in pairs(ic.keepFrames or {}) do
 		for _, f in ipairs(frames) do put(f, kept(field) and 1 or a) end
 	end

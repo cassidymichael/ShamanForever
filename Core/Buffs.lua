@@ -923,7 +923,7 @@ ns.registerPart("buffBar", {
 				return
 			end
 			if not bar then
-				bar = newBuffBar(ic.over or ic.textFrame)
+				bar = newBuffBar(ic.keepOver or ic.textFrame)
 				ic.buffBar = bar
 			end
 			placeBuffBar(bar, ic, def.key, def.buffBar.school)
