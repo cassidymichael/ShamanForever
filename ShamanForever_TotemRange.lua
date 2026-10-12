@@ -435,7 +435,11 @@ end
 
 -- After your cast of a covered totem not yet seen, at rest: look for its buff on you for a few seconds
 local function lookForBuff(s, id, tries)
-	if ns.inCombat() or not ns.aurasReadable() or not enabled() or ns.Totems.downSpell(s.slot) ~= id then return end
+	if not enabled() or ns.Totems.downSpell(s.slot) ~= id then return end
+	if ns.inCombat() or not ns.aurasReadable() then
+		C_Timer.After(1, function() lookForBuff(s, id, tries) end)
+		return
+	end
 	local e = entryOf(s.el, id)
 	if not e or seen(id) then return end
 	if buffOn(s.el, e) then
