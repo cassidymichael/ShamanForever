@@ -332,71 +332,29 @@ end
 -- login, never on a guess: a missed ready beats a false one.
 local READY_GRACE, ARM_AFTER_CAST = 0.5, 1.5
 local function arm(r) r.armed, r.by, r.castAt = true, nil, nil end
--- Still armed, still ready and its tracker still running once the grace is over: the cooldown ended
--- early (a reset the event didn't show), so this is its ready; a GCD alone counts as ready. Only for rows
--- with a reset
-local function endedEarly(f, spellID, by)
-	local r = f.ready
-	if not r.armed or r.by ~= by then return end
-	local st = plainCooldown(spellID)
-	if not f.ownCd:IsShown() or ns.zoning() or ns.cantAct() then
-		r.armed, r.by = nil, nil
-	elseif st == "ready" or st == "gcd" then
-		r.armed, r.by = nil, nil
-		r.at = GetTime()
-		for _, fn in ipairs(r.fns) do fn() end
-	else
-		r.by = nil   -- a later read of its end may try again
-	end
-end
--- Its own cooldown read over: the tracker's end within the grace is its ready, a later one isn't
-local function startGrace(f, spellID)
-	local r = f.ready
-	local by = GetTime() + READY_GRACE
-	r.by = by
-	if not r.atReset then return end
-	r.over = true
-	C_Timer.After(READY_GRACE, function() endedEarly(f, spellID, by) end)
-end
-local function noteReady(f, st, inEvent, spellID)
+local function noteReady(f, st, inEvent)
 	local r = f.ready
 	if st == "ready" then
-		if r.armed and not r.by then startGrace(f, spellID) end
+		-- Its own cooldown read over: the tracker's end within the grace is its ready, a later one isn't
+		if r.armed and not r.by then r.by = GetTime() + READY_GRACE end
 	elseif st == "own" and inEvent and r.castAt and GetTime() - r.castAt <= ARM_AFTER_CAST then
 		arm(r)
 	end
 end
--- Reset: its ready begins while the cooldown our own cast started is provably not over. The event names
--- the spell, our tracker is still shown, the read isn't its own cooldown running, and the cast clock says
--- more than a GCD can hide is left. Any read that fails or is secret is no Reset.
-local READY_LEFT = 0.5
+-- Reset: the event names the spell our cast armed, its tracker is still shown and the read isn't its own
+-- cooldown running. Any read that fails or is secret is no Reset.
 local function plainNumber(v) return type(v) == "number" and not isSecret(v) and v == v and v or nil end
--- How much of the cooldown must be left for a read of a GCD: the GCD, the cast event's lag, and spare
-local function gcdMargin(spellID)
-	local ok, _, gcd = safe(GetSpellBaseCooldown, spellID)
-	gcd = ok and plainNumber(gcd)
-	return (gcd and gcd > 0 and gcd / 1000 or 1.5) + 1
-end
-local function cooldownLength(spellID)
-	local ok, ms = safe(GetSpellBaseCooldown, spellID)
-	ms = ok and plainNumber(ms)
-	return ms and ms > 0 and ms / 1000 or nil
-end
 local function namesSpell(def, id)
 	return plainNumber(id) ~= nil and (id == def.spellID or Spells.keyOf(id) == def.spellKey)
 end
 local function checkReset(def, spellID, baseID)
 	local f = def.frame
 	local r = f.ready
-	if not (r and r.armed and r.cast and def.spellID and def.resetKnown) then return end
+	if not (r and r.armed and def.spellID and def.resetKnown) then return end
 	if not (namesSpell(def, spellID) or namesSpell(def, baseID)) then return end
 	if not f.ownCd:IsShown() or ns.zoning() or ns.cantAct() then return end
 	local st = plainCooldown(def.spellID)
 	if st == nil or st == "own" then return end
-	local len = cooldownLength(def.spellID)
-	if not len then return end
-	local left = r.cast + len - GetTime()
-	if left <= (st == "ready" and READY_LEFT or gcdMargin(def.spellID)) then return end
 	r.armed, r.by, r.castAt = nil, nil, nil
 	r.at = GetTime()
 	r.reset = r.at
@@ -430,36 +388,10 @@ local function watchEnds(f)
 		r.armed, r.by = nil, nil
 	end)
 end
--- A reset inside a GCD reads "gcd" until that GCD ends, when nothing reads it: a second tracker on
--- the cooldown with the GCD, which never ends before the spell's own, starts the grace at its end
-local function watchGCD(f, spellID)
-	local r = f.ready
-	local g = r.gcdCd
-	if not g then
-		g = quietCooldown(f)
-		g:Hide()
-		r.gcdCd = g
-		g:HookScript("OnCooldownDone", function()
-			if r.armed and not r.by then startGrace(f, r.gcdSpell) end
-		end)
-	end
-	if g:IsShown() then return end
-	local ok, dur = safe(C_Spell.GetSpellCooldownDuration, spellID)
-	if not (ok and dur) then return end
-	r.gcdSpell = spellID
-	ns.try("ready at a reset", g.SetCooldownFromDurationObject, g, dur, true)
-end
--- Its own cooldown runs again (a cast): what was seen of the last one's end is gone
-local function restarted(r)
-	r.over = nil
-	if r.gcdCd then r.gcdCd:Clear() end
-end
 function CD.noteCast(f, spellID)
 	watchEnds(f)
 	local r = f.ready
-	restarted(r)
 	r.castAt = GetTime()
-	r.cast = r.castAt
 	if plainCooldown(spellID) == "own" then arm(r) end
 end
 -- A cooldown already running at the first look after a login arms its ready, only out of combat, where
@@ -480,7 +412,7 @@ end
 function CD.resetReady(f, off)
 	local r = f.ready
 	if not r then return end
-	r.armed, r.by, r.castAt, r.cast, r.fresh = nil, nil, nil, nil, off or nil
+	r.armed, r.by, r.castAt, r.fresh = nil, nil, nil, off or nil
 	f.ownCd:Clear()
 end
 function CD.readyNow(f) return f.ready ~= nil and f.ready.at == GetTime() end
@@ -497,14 +429,10 @@ end
 -- combat).
 local function cooldownFor(f, key, spellID, inEvent)
 	watchEnds(f)
-	local r = f.ready
 	local st = plainCooldown(spellID)
-	noteReady(f, st, inEvent, spellID)
-	if r.atReset and r.armed and st == "gcd" then watchGCD(f, spellID) end
-	if r.atReset and st == "own" and inEvent then restarted(r) end
+	noteReady(f, st, inEvent)
 	local ok, own = safe(C_Spell.GetSpellCooldownDuration, spellID, true)
-	-- Once its end was seen, "own" outside the event is a GCD ending: its empty duration would clear the tracker
-	if st == "own" and ok and own and (inEvent or not (r.over and f.ownCd:IsShown())) then
+	if st == "own" and ok and own then
 		ns.try("ready tracker", f.ownCd.SetCooldownFromDurationObject, f.ownCd, own, true)
 	elseif st == "ready" and not f.ready.armed then f.ownCd:Clear() end
 	armRunning(f, spellID, st, ok and own)
@@ -654,7 +582,6 @@ for _, def in ipairs(COOLDOWNS) do
 	end
 	popWhenReady(def.frame, def.key, gate)
 	soundWhenReady(def.frame, def.key, gate)
-	def.frame.ready.atReset = def.reset ~= nil or nil
 	if def.reset then textWhenReset(def.frame, def.key) end
 	-- The swipe's end, and the spell's own (the time bar's), which can end inside a GCD
 	for _, cd in ipairs({ def.frame.cd, def.frame.ownCd }) do
