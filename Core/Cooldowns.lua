@@ -302,8 +302,8 @@ end
 
 ns.registerKind("cooldown", {
 	parts = { "cooldown", "ready", "readyGlow", "lowMana" },
-	slots = { "own", "warn", "cast", "ready", "reset", "lowMana", "active", "expire", "killed", "cooldown", "gcd",
-		"uptime" },
+	slots = { "own", "warn", "cast", "ready", "reset", "lowMana", "active", "buffBar", "expire", "killed",
+		"cooldown", "gcd", "uptime" },
 	prepare = function(def)
 		def.expires = hasUptime(def) and def.expireLooks ~= false and not KD.hook("cooldown", def, "uptime")
 		checkFrames(def)

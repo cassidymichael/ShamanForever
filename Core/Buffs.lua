@@ -830,28 +830,22 @@ end
 
 -- Cooldown rows with buffBar = { buffKey, talentKey, school }: a bar on the icon while that buff of
 -- yours is up, drawn by Blizzard's aura button (a proc can't be timed from a cast). It takes Time
--- left's style and the icon's other edge from Time left's bar. Its switch, buffBar, starts off.
+-- left's style, always at the icon's top edge (the debuff's bar sits at the bottom); never a swipe.
 -- B.buffBarLearned(def) says whether its talent is learned.
 local BUFF_BARS = {}
 for _, def in ipairs(ns.CLASS.cooldowns or {}) do
 	if def.buffBar then table.insert(BUFF_BARS, { def = def, spec = def.buffBar }) end
 end
 local barsPreviewing = false
-local function buffBarShown(def) return setting(def.key, "buffBar") == true end
-local function buffBarOn(x)
-	local def = x.def
-	return x.learned and E.inUse(def.key) and buffBarShown(def)
-end
--- Where it sits on anchor, in Time left's style: the edge its bar doesn't use, inside the picture of
--- icon (the element's icon, the same box: Blizzard's button has no border of its own)
+local function buffBarOn(x) return x.learned and E.inUse(x.def.key) end
+-- Where it sits on anchor, in Time left's style: the top edge, inside the picture of icon (the
+-- element's icon, the same box: Blizzard's button has no border of its own)
 local function placeBuffBar(bar, anchor, key, school, icon)
 	local s = ns.Style.get(key, "uptime")
 	local pic = ns.StyleArt.pictureInset(icon or anchor)
-	local edge = s.barEdge == "top" and "BOTTOM" or "TOP"
-	local y = edge == "TOP" and -pic or pic
 	bar:ClearAllPoints()
-	bar:SetPoint(edge .. "LEFT", anchor, edge .. "LEFT", pic, y)
-	bar:SetPoint(edge .. "RIGHT", anchor, edge .. "RIGHT", -pic, y)
+	bar:SetPoint("TOPLEFT", anchor, "TOPLEFT", pic, -pic)
+	bar:SetPoint("TOPRIGHT", anchor, "TOPRIGHT", -pic, -pic)
 	bar:SetHeight(s.barHeight)
 	bar:SetStatusBarTexture(ns.Media.barTexture(key))
 	local c = ns.THEME.barColor[school] or ns.THEME.barColor[ns.THEME.fallback]
@@ -902,27 +896,24 @@ function B.buffBarLearned(def)
 end
 ns.registerPart("buffBar", {
 	kind = "cooldown",
-	defaults = { buffBar = false, idleKeep = { buffBar = false } },
+	defaults = { idleKeep = { buffBar = false } },
 	idle = { keep = function(def)
 		return { "buffBar", Spells.name(def.buffBar.buffKey), "Its bar and glow, while either is on.",
 			function() return not B.buffBarLearned(def) end }
 	end },
-	page = { own = function(def)
-		local timeLeft = KD.words("cooldown", def, "uptime") or "Time left"
-		return { "toggle", name = "buffBar", title = Spells.name(def.buffBar.buffKey), label = "Time left bar",
-			tip = "While it's up, on the icon's other edge from the " .. timeLeft .. " bar.",
+	page = { buffBar = function(def)
+		return { title = Spells.name(def.buffBar.buffKey), text = "A bar at the top of the icon while it's up.",
 			unlearned = function() return not B.buffBarLearned(def) end }
 	end },
 	preview = {
 		states = function(def) return { { "buffBar", Spells.name(def.buffBar.buffKey), 63 } } end,
 		keeps = { buffBar = "buffBar" },
-		-- Drawn cooling down: it idles where the cooldown does
+		-- Drawn on a ready icon: it idles where the cooldown does
 		idles = function(st, def, when) if st == "buffBar" then return KD.idleMode(def, when) == "offcd" end end,
-		-- Drawn on the preview icon by hand: the cooldown under way, a frozen bar while its switch is on
-		render = function(ic, st, def, kit)
+		-- Drawn on the preview icon by hand: a frozen bar, no swipe
+		render = function(ic, st, def)
 			local bar = ic.buffBar
-			if st == "buffBar" then kit.frozen(ic.cdT, 0.4, def.cd or 60) end
-			if st ~= "buffBar" or not buffBarShown(def) then
+			if st ~= "buffBar" then
 				if bar then bar:Hide() end
 				return
 			end
@@ -940,7 +931,6 @@ ns.registerPart("buffBar", {
 		debug = function(def)
 			local x = buffBarOf(def)
 			local name = Spells.name(def.buffBar.buffKey)
-			if not buffBarShown(def) then return name .. " bar off" end
 			if not x.learned then return name .. " bar: talent not learned" end
 			return name .. " bar: " .. x.slot:describe()
 		end,
