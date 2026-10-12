@@ -219,7 +219,7 @@ local function follow(s)
 end
 
 -- Values from the duration object may be secret: only ever straight to SetAlpha
-function RG.drawTimeLeft(s)
+function RG.refresh(s)
 	if not s.outGate then return end
 	follow(s)
 	local m, d = s.rangeMark, s.dur
@@ -228,7 +228,6 @@ function RG.drawTimeLeft(s)
 		m:SetAlpha(ok and a or 0)
 	else m:SetAlpha(0) end
 end
-RG.refresh = RG.drawTimeLeft
 
 -- A slot's totem changed (nil: any slot's): the gate settles again
 function RG.totemChanged(slot)

@@ -830,7 +830,7 @@ function TB.drawTimeLeft(s)
 		local ok, a = ns.try("totem bar: time bar", d.EvaluateRemainingDuration, d, ns.CURVE_LIVE)
 		if ok then tbar:SetAlpha(a) end
 	end
-	TB.range.drawTimeLeft(s)
+	TB.range.refresh(s)
 end
 
 -- The slot's expiring warning at its layer (TB.LAYER), once
