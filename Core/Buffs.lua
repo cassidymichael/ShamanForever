@@ -767,11 +767,11 @@ ns.registerPart("auraState", {
 				ic:Pop("ready")
 			end
 		end,
-		-- As the HUD: the buff's button is in full whatever Idle says; its switch off, the cast started its
-		-- cooldown
+		-- As the HUD: the buff's button is in full whatever Idle says; its switch off, the cooldown starts when
+		-- the buff is spent, so a primed spell reads ready
 		idles = function(st, def, when)
 			if st ~= "active" and st ~= "expiring" then return nil end
-			if def.auraState.active and not stateActiveOn(def) then return KD.idleMode(def, when) == "oncd" end
+			if def.auraState.active and not stateActiveOn(def) then return KD.idleMode(def, when) == "offcd" end
 			return false
 		end,
 	},
@@ -916,7 +916,7 @@ ns.registerPart("buffBar", {
 		states = function(def) return { { "buffBar", Spells.name(def.buffBar.buffKey), 63 } } end,
 		keeps = { buffBar = "buffBar" },
 		-- Drawn cooling down: it idles where the cooldown does
-		idles = function(st, def, when) if st == "buffBar" then return KD.idleMode(def, when) == "oncd" end end,
+		idles = function(st, def, when) if st == "buffBar" then return KD.idleMode(def, when) == "offcd" end end,
 		-- Drawn on the preview icon by hand: the cooldown under way, a frozen bar while its switch is on
 		render = function(ic, st, def, kit)
 			local bar = ic.buffBar
