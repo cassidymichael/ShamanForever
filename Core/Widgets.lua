@@ -154,6 +154,17 @@ function W.linePx(frame, n)
 	return count * W.pixel(frame)
 end
 
+-- A round texture: a colour under the client's round portrait mask
+local ROUND = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
+function W.disc(parent, layer, sub)
+	local t = parent:CreateTexture(nil, layer, nil, sub)
+	local m = parent:CreateMaskTexture()
+	m:SetTexture(ROUND, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+	m:SetAllPoints(t)
+	t:AddMaskTexture(m)
+	return t
+end
+
 -- A thin scroll bar line, in the options nav list's colours: line:update(height, from, shown), from and
 -- shown being the part in view as fractions of the whole
 local SCROLL_LINE_PX = 3

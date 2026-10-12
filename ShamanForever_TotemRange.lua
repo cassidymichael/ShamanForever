@@ -175,7 +175,7 @@ local function texture(m, kind)
 	if kind == "strip" then return m.bg end
 	local t = m[kind]
 	if not t then
-		t = (kind == "dot" or kind == "dotOut") and ns.Page.disc(m, "ARTWORK") or m:CreateTexture(nil, "ARTWORK")
+		t = (kind == "dot" or kind == "dotOut") and W.disc(m, "ARTWORK") or m:CreateTexture(nil, "ARTWORK")
 		t:SetAllPoints()
 		if kind == "dot" then ns.StyleArt.followMask(m.v, t) end
 		m[kind] = t
