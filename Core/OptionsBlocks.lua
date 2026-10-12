@@ -892,7 +892,7 @@ local function idleBlock(p, def)
 		eslider(p, key, "Idle opacity", "Its opacity while idle, every part.", pct, nil, "idleAlpha")
 		local keeps = def.idleKeep
 		if not keeps then return end
-		p:text('Keep these components at full opacity even when "idle" is active:', nil, "Full opacity",
+		p:text("Keep these parts at full opacity even when idle:", nil, "Full opacity",
 			"Still follows its group's opacity.")
 		for _, k in ipairs(keeps) do
 			local keepGet, keepSet = eopt(p, key, "idleKeep", k[1])
