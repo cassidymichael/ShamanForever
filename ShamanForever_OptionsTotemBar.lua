@@ -540,7 +540,7 @@ local function build(p)
 	p:sub(range, tget("range"), function()
 		tslider("Height", "In pixels.", px, "rangeHeight")
 		p:color("Colour", "Colour and opacity.", tget("rangeOut"), tset("rangeOut"))
-		p:text("It can take a few seconds to show you've left range.")
+		p:text("It can take a few seconds to show you've left range as the buff lingers.")
 	end)
 
 	p.gate = full
