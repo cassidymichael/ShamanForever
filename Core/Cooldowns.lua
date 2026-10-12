@@ -34,14 +34,19 @@ local function heldChoices(held)
 			.. "is out." } }
 end
 
--- A row whose buff outlasts the press (auraState.length): Cooling down also counts the buff's seconds as awake
+-- A row with a buff of its own (auraState, _Buffs): its button shows it in full while the buff is up
 local function buffChoices(def)
-	local len, name = def.auraState and def.auraState.length, def.spell
-	if not (len and name) then return CD.IDLE_CHOICES end
-	local list = { IDLE_NEVER, IDLE_OFFCD, { IDLE_ONCD[1], IDLE_ONCD[2],
-		string.format("Idle while it's cooling down, once %s's %d seconds are over%%s", name, len),
-		string.format("Shown in full while it's ready and for %s's %d seconds after you use it.", name, len) } }
-	return list
+	local s = def.auraState
+	if not s then return CD.IDLE_CHOICES end
+	if s.active then
+		return { IDLE_NEVER, IDLE_OFFCD, { IDLE_ONCD[1], IDLE_ONCD[2], IDLE_ONCD[3], string.format(
+			"Shown in full while it's ready, and while it's %s when %s is on.", s.active.title:lower(), s.active.title) } }
+	end
+	local name = s.key and Spells.name(s.key) or def.spell
+	if not name then return CD.IDLE_CHOICES end
+	return { IDLE_NEVER, IDLE_OFFCD, { IDLE_ONCD[1], IDLE_ONCD[2],
+		string.format("Idle while it's cooling down, except while %s is on you%%s", name),
+		string.format("Shown in full while it's ready and while %s is on you.", name) } }
 end
 
 -- Time left: its page has a Time left block (a part's)

@@ -365,7 +365,6 @@ end
 local function plainLength(dur) return type(dur) == "number" and not isSecret(dur) and dur > 0 end
 function B.expiring.checkLength(x, dur, length)
 	if not plainLength(dur) or type(length) ~= "number" then return false end
-	x.readLength = dur
 	local off = math.abs(dur - length) > 0.05
 	if off == (x.lengthOff or false) then return false end
 	x.lengthOff = off
@@ -609,8 +608,9 @@ end
 -- by Blizzard's aura button over the icon, in combat too; nothing read. key: the aura's spell (default
 -- the row's), any rank, by ID; filter: default HELPFUL|PLAYER (yours only); length: its full length in
 -- seconds, for its time left and Expiring (nil: until spent, no time left); active = { title, text,
--- tips = { pop, glow } }: a state with its switch (active.on), pop and glow from the same aura. On the
--- idle layer, so an idle element fades whole (active: on its keep holder, idleKeep.active). An aura slot
+-- tips = { pop, glow } }: a state with its switch (active.on), pop and glow from the same aura. The
+-- button draws the buff's picture, border and art frame over the icon on its effects layer, as a proc's
+-- does: in full while the buff is up, so the element is awake exactly then. An aura slot
 -- (W.makeAuraSlot): made and styled out of combat with auras readable.
 local STATES, STATE_LIST = {}, {}
 for _, def in ipairs(ns.CLASS.cooldowns or {}) do
@@ -680,10 +680,6 @@ local function makeState(x)
 	slot:styleNow()
 	stateAlpha(x)
 end
--- Awake for the buff's length after our own cast (a plain clock, never read from the aura): a cancel or a
--- purge only keeps it shown longer; a cast it didn't see leaves it resting
-local function windowLength(x) return x.lengthOff and x.readLength or x.spec.length end
-local function windowHeld(x) return x.heldUntil ~= nil and GetTime() < x.heldUntil end
 -- Its length guard (B.expiring)
 local function readStateLength(x)
 	local length = x.spec.length
@@ -694,20 +690,22 @@ for _, x in ipairs(STATE_LIST) do
 	local f = def.frame
 	if s.length then B.expiring.note(key) end
 	x.alpha = function() return (stateOn(x) and not statesPreviewing) and 1 or 0 end
-	-- Primed can be kept in full over an idle element (idleKeep.active); a time left fades with it
-	x.layer = s.active and f.keepHolder("active") or f.idleLayer
-	-- No picture: the icon keeps the cooldown; its time left, Expiring's parts and the pop on the button
+	-- dual: its time left placed as beside the cooldown's, as the preview draws it
 	x.slot = W.makeAuraSlot(f, {
-		key = key, slot = key .. "-state", filter = stateFilter(x), layer = x.layer, noIcon = true,
+		key = key, slot = key .. "-state", filter = stateFilter(x), layer = f.effects, dual = true,
 		noTimer = not s.length, ids = function() return stateIDs(x) end,
 		extras = s.length and B.expiring.extras(x, def) or nil,
 		sites = { container = "aura state " .. key, style = "aura state style " .. key,
 			filter = "aura state filter " .. key, bar = "aura state bar " .. key },
-		onButton = function(_, button)
+		onButton = function(slot, button)
+			if x.fx then x.fx:bind(button, slot.icon) end
+			-- The button draws the border's art; this edge its lines and art frame
+			x.edge = x.fx and x.fx:makeEdge(button) or ns.Frames.edge(button, button, key, { overlay = false })
+			ns.try("aura state border " .. key, ns.Frames.dress, x.edge, key)
 			if s.length then B.expiring.button(x, button) end
-			if x.fx then x.fx:bind(button) end
 		end,
 		onStyle = function(slot, size)
+			if x.edge then ns.try("aura state border " .. key, ns.Frames.dress, x.edge, key) end
 			if x.fx then
 				x.fx:setQuiet(x.quiet)
 				x.fx:stylePop(size)
@@ -718,7 +716,7 @@ for _, x in ipairs(STATE_LIST) do
 	})
 	if s.active then
 		x.fx = ns.Effects.host(f, key, { aura = {
-			slot = x.slot, parent = x.layer, unit = "player", filter = stateFilter(x),
+			slot = x.slot, parent = f.effects, unit = "player", filter = stateFilter(x),
 			ids = function() return stateIDs(x) end,
 			popOn = function() return stateOn(x) and setting(key, "active", "pop") end,
 			sites = { container = "aura state glow sensor " .. key, style = "aura state glow style " .. key,
@@ -731,16 +729,9 @@ ns.registerPart("auraState", {
 	defaults = function(def)
 		local s, d = def.auraState, {}
 		if s.length then d.expire = B.expiring.defaults.expire end
-		if s.active then
-			d.active = { on = true, pop = true, glow = true }
-			d.idleKeep = { active = false }
-		end
+		if s.active then d.active = { on = true, pop = true, glow = true } end
 		return d
 	end,
-	idle = { keep = function(def)
-		local a = def.auraState.active
-		return a and { "active", a.title, "Its glow and pop." } or nil
-	end },
 	ranges = function(def)
 		if def.auraState.length then return { expire = { secs = B.expiring.range } } end
 	end,
@@ -757,7 +748,6 @@ ns.registerPart("auraState", {
 	},
 	preview = {
 		uptime = function(def) return def.auraState.length ~= nil end,
-		keeps = function(def) return def.auraState.active and { active = "active" } or nil end,
 		states = function(def)
 			local s = def.auraState
 			local list = { { "active", s.active and s.active.title or "Active", 61 } }
@@ -777,35 +767,26 @@ ns.registerPart("auraState", {
 				ic:Pop("ready")
 			end
 		end,
-		-- As the HUD: awake for the buff's length after the cast, under either choice
-		idles = function(st) if st == "active" or st == "expiring" then return false end end,
+		-- As the HUD: the buff's button is in full whatever Idle says; its switch off, the cast started its
+		-- cooldown
+		idles = function(st, def, when)
+			if st ~= "active" and st ~= "expiring" then return nil end
+			if def.auraState.active and not stateActiveOn(def) then return KD.idleMode(def, when) == "oncd" end
+			return false
+		end,
 	},
 	runtime = {
 		uptime = function(def) return STATES[def.key].slot.timer end,
 		refresh = function(def, _, held)
-			local x = STATES[def.key]
-			stateGlow(x)
-			return held or (stateOn(x) and windowHeld(x))
-		end,
-		cast = function(def)
-			local x = STATES[def.key]
-			local len = x.spec.length and windowLength(x)
-			if not len then return end
-			local at = GetTime() + len
-			x.heldUntil = at
-			C_Timer.After(len + 0.05, function()
-				if x.heldUntil == at then def.refresh(def) end
-			end)
+			stateGlow(STATES[def.key])
+			return held
 		end,
 		debug = function(def)
 			local x = STATES[def.key]
 			if not stateOn(x) then return "buff off" end
 			local words = "buff " .. x.slot:describe()
+			words = words .. (x.slot.button and ", button made" or ", no button yet")
 			if x.lengthOff then words = words .. ", another length (no Expiring bar)" end
-			if x.spec.length then
-				words = words .. (windowHeld(x) and string.format(", awake for its buff until %.0f s",
-					x.heldUntil - GetTime()) or ", not held")
-			end
 			if x.fx then words = words .. "; " .. x.fx:describe() end
 			return words
 		end,
