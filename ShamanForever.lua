@@ -32,7 +32,6 @@ local SHOW_WHEN = {
 
 local DEFAULTS = {
 	iconSize = W.BASE_ICON_SIZE,
-	idleAfter = 0.6,   -- seconds a ready element waits before it rests
 	idleFade = 0.2,   -- seconds its fade down takes
 	border = CopyTable(ns.Style.PARTS.border.defaults),
 	glowStyle = CopyTable(ns.Style.PARTS.glow.defaults),
@@ -377,15 +376,13 @@ local function idleAlpha(key)
 	if type(v) ~= "number" or v ~= v then v = elementDefault(key, "idleAlpha") end
 	return math.min(math.max(v, 0), 1)
 end
--- Idle after and Idle fade (Global), in seconds within their ranges
-local function idleSecs(name)
-	local v = db and db[name]
-	if type(v) ~= "number" or v ~= v then v = DEFAULTS[name] end
-	local r = P.RANGES[name]
+-- Idle fade (Global), in seconds within its range
+local function idleFade()
+	local v = db and db.idleFade
+	if type(v) ~= "number" or v ~= v then v = DEFAULTS.idleFade end
+	local r = P.RANGES.idleFade
 	return math.min(math.max(v, r[1]), r[2])
 end
-local function idleAfter() return idleSecs("idleAfter") end
-local function idleFade() return idleSecs("idleFade") end
 -- Its Idle when, or the default for a value its choices don't list
 local function idleWhen(key)
 	local v = elementSetting(key, "idleWhen")
@@ -1191,7 +1188,7 @@ E.isEnabled, E.inUse, E.isOn, E.showMode, E.isLearned, E.setShow, E.setOn = isEn
 	setShow, setOn
 E.BASE = BASE
 E.opts, E.setting, E.default, E.idleAlpha = elementOpts, elementSetting, elementDefault, idleAlpha
-E.fade, E.idleWhen, E.idleAfter, E.idleFade = fadeElement, idleWhen, idleAfter, idleFade
+E.fade, E.idleWhen, E.idleFade = fadeElement, idleWhen, idleFade
 E.setSetting, E.event, E.range = setElementSetting, elementEvent, elementRange
 E.sizeOf, E.boxOf, E.setOff = sizeOf, boxOf, setOff
 E.applyTimers, E.resolveSpells, E.refreshAll, E.refreshCooldownsSoon = applyTimers, resolveSpells, refreshAll,

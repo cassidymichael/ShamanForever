@@ -401,7 +401,7 @@ CD.popWhenReady = popWhenReady
 
 -- Idle
 -- Off cooldown with nothing of its own going on. isOnGCD is only vouched for inside the event,
--- so its answer is kept (cdRunning). Going idle waits the player's Idle after.
+-- so its answer is kept (cdRunning).
 local refreshCooldown
 -- An unreadable answer reports running but uncertain
 local function ownCooldownRunning(def, inEvent)
@@ -427,14 +427,7 @@ local function applyIdle(def, held, inEvent)
 	local busy
 	if KD.idleMode(def, when) == "oncd" then busy = not (running and certain) else busy = running end
 	busy = busy or held or when == "never" or not P.getAccount().locked
-	if busy then def.idleAt = nil
-	elseif def.idle == false then
-		local after = E.idleAfter()
-		def.idleAt = GetTime() + after
-		C_Timer.After(after + 0.05, function() def.refresh(def) end)
-	end
-	local waiting = def.idleAt and GetTime() < def.idleAt
-	fadeTo(def, (busy or waiting) and 1 or E.idleAlpha(def.key))
+	fadeTo(def, busy and 1 or E.idleAlpha(def.key))
 	def.idle = not busy
 end
 CD.applyIdle = applyIdle

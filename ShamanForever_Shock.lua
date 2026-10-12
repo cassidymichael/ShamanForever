@@ -51,7 +51,7 @@ CS.watch("shock", { frame = shock, power = true, range = true,
 
 local function refreshCooldown(inEvent)
 	if not E.inUse("shock") then
-		idleDef.cdRunning, idleDef.idle, idleDef.idleAt = nil, nil, nil
+		idleDef.cdRunning, idleDef.idle = nil, nil
 		E.fade("shock", 1)
 		return CD.resetReady(shock, true)
 	end

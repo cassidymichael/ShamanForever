@@ -97,11 +97,11 @@ end
 
 local function paintElement(key, r, moment)
 	local ic, st = standIns[key], r.steps[r.i][1]
-	ic.momentToken, ic.idleToken = nil, nil
+	ic.momentToken = nil
 	local ends = OA.paint(ic, key, st, r.at)
 	local pv = OA.PREVIEW[key]
 	if pv.hold then pv.hold(ic) end
-	if idles(key, st) and not r.idleAt then setAlpha(ic, key, st, OA.idleAlpha(key))
+	if idles(key, st) then setAlpha(ic, key, st, OA.idleAlpha(key))
 	else setAlpha(ic, key, st, ic:GetAlpha()) end
 	local pop = pv.pop
 	if moment and pop then ns.try("preview pop " .. key, pop, ic, st, OA.kit) end
@@ -117,7 +117,6 @@ end
 
 local function startStep(key, r, moment)
 	r.at = GetTime()
-	r.idleAt = moment and idles(key, r.steps[r.i][1]) and r.at + OA.idleAfter(key) or nil
 	r.nextAt = nextAt(r, paintElement(key, r, moment))
 end
 
@@ -197,13 +196,7 @@ end
 local ticker = ns.ticker(0.1, function()
 	local now = GetTime()
 	for key, r in pairs(runs) do
-		if r.live and r.nextAt then
-			if now >= r.nextAt then ns.try("preview step", advance, key, r)
-			elseif r.idleAt and now >= r.idleAt then
-				r.idleAt = nil
-				OA.fadeIcon(standIns[key], key, r.steps[r.i][1], OA.idleAlpha(key), true)
-			end
-		end
+		if r.live and r.nextAt and now >= r.nextAt then ns.try("preview step", advance, key, r) end
 	end
 	for _, r in ipairs(barRuns) do
 		if r.nextAt and now >= r.nextAt then ns.try("preview " .. r.key, advanceBar, r) end
