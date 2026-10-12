@@ -218,6 +218,7 @@ ns.Spells.add({
 	flametongue     = { ids = { 8024 }, en = "Flametongue Weapon" },
 	frostbrand      = { ids = { 8033 }, en = "Frostbrand Weapon" },
 	windfury        = { ids = { 8232 }, en = "Windfury Weapon" },
+	ghostWolf       = { ids = { 2645 }, en = "Ghost Wolf" },
 	call            = { ids = { 66842 }, en = "Call of the Elements" },
 	callAncestors   = { ids = { 66843 }, en = "Call of the Ancestors" },   -- level 30
 	callSpirits     = { ids = { 66844 }, en = "Call of the Spirits" },   -- level 40

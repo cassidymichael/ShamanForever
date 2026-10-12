@@ -576,9 +576,10 @@ local function build(p)
 		end)
 		p:text("It can take a few seconds to show you've left range as the buff lingers.")
 		p:text(function()
-			local function name(id, en) return ns.Spells.nameOf(id) or en end
-			return string.format("%s and %s show nothing while the matching imbue is on your main hand, in %s or "
-				.. "with no weapon.", name(8227, "Flametongue Totem"), name(8512, "Windfury Totem"), name(2645, "Ghost Wolf"))
+			local names = TB.range.weaponNames()
+			if #names == 0 then return "" end
+			return string.format("%s show nothing while the matching imbue is on your main hand, in %s or "
+				.. "with no weapon.", table.concat(names, " and "), ns.Spells.name("ghostWolf"))
 		end)
 	end)
 
