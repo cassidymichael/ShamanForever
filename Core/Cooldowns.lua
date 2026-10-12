@@ -150,15 +150,28 @@ ns.registerPart("reset", {
 	preview = {
 		states = { { "reset", "Reset", 12 } },
 		render = function(ic, st, def)
-			if st ~= "reset" then return end
-			ic:SetGlowShown(setting(def.key, "ready", "glow"))
 			local word = previewWord(ic)
+			if st ~= "reset" then
+				ic.resetUntil = nil
+				return
+			end
+			ic:SetGlowShown(setting(def.key, "ready", "glow"))
 			word:SetText(resetWords(def.key))
 			W.styleWord(word, ic, E.settingsOf(def.key))
-			word:SetShown(setting(def.key, "reset", "text") == true)
+			local live = ic.resetUntil ~= nil and GetTime() < ic.resetUntil
+			word:SetShown(live and setting(def.key, "reset", "text") == true)
 		end,
 		pop = function(ic, st, def)
 			if st ~= "reset" then return end
+			if setting(def.key, "reset", "text") == true and ic.resetWord then
+				local secs = setting(def.key, "reset", "secs")
+				local stamp = GetTime() + secs
+				ic.resetUntil = stamp
+				ic.resetWord:Show()
+				C_Timer.After(secs, function()
+					if ic.resetUntil == stamp then ic.resetWord:Hide() end
+				end)
+			end
 			if setting(def.key, "reset", "pop") then ic:Pop("reset")
 			elseif setting(def.key, "ready", "pop") then ic:Pop() end
 		end,
