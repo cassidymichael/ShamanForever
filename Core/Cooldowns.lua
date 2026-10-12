@@ -375,8 +375,11 @@ local function popWhenReady(f, key, gate)
 		if ns.cantAct() then return end
 		local g = "ready"
 		if gate then g = gate() end
-		if g == "ready" then f:Pop()
-		elseif g == "blocked" and setting(key, "ready", "blocked") == "grey" then f:Pop("blocked") end
+		local grey = g == "blocked" and setting(key, "ready", "blocked") == "grey"
+		if g ~= "ready" and not grey then return end
+		-- Its refresh comes a frame later: a pop that wakes the element plays at the awake alpha
+		E.fade(key, 1, true)
+		if grey then f:Pop("blocked") else f:Pop() end
 	end)
 end
 CD.popWhenReady = popWhenReady

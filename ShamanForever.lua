@@ -378,13 +378,15 @@ local function idleWhen(key)
 end
 -- An element at Idle opacity a: its icon, its idle layer and each holder fade together, and a holder whose
 -- part the player keeps (idleKeep) stays in full. Every fade of an element goes through here.
-local function fadeElement(key, a)
+-- now: the idle layer takes a at once, so a pop that wakes the element plays at the awake alpha.
+local function fadeElement(key, a, now)
 	local e = ELEMENTS[key]
 	local f = e and e.frame
 	if not f then return end
 	f.idleTarget = a
 	W.fadeTo(f, a)
 	if not f.idleLayer then return end
+	if now then f.idleLayer:SetAlpha(a) end
 	W.fadeTo(f.idleLayer, a)
 	for _, holders in ipairs({ f.keep, f.keepOut }) do
 		for field, h in pairs(holders) do
