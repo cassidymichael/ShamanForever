@@ -299,8 +299,8 @@ local function refresh()
 		why = targetListed and "target" or next(plates) and "nameplate" or feared and "on you" or "just after"
 	end
 	local busy = want or not P.getAccount().locked or (out and E.idleWhen(KEY) == "notdown")
-	-- Woken first, at once as a warning starts: its pop plays at the awake alpha
-	E.fade(KEY, busy and 1 or E.idleAlpha(KEY), want and not alerting)
+	-- Woken first: a warning's pop plays at the awake alpha
+	E.fade(KEY, busy and 1 or E.idleAlpha(KEY))
 	setAlert(want)
 end
 TR.refresh = refresh

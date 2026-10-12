@@ -117,22 +117,21 @@ function W.keyLabel(key)
 	return label
 end
 
-local FADE_OUT, FADE_IN = 0.8, 0.15
+local FADE_OUT = 0.8
 local fading = {}
 local fader = CreateFrame("Frame")
 fader:Hide()
 fader:SetScript("OnUpdate", function(self, elapsed)
 	for f, target in pairs(fading) do
-		local a = f:GetAlpha()
-		if target < a then a = math.max(target, a - elapsed / FADE_OUT)
-		else a = math.min(target, a + elapsed / FADE_IN) end
+		local a = math.max(target, f:GetAlpha() - elapsed / FADE_OUT)
 		f:SetAlpha(a)
 		if a == target then fading[f] = nil end
 	end
 	if next(fading) == nil then self:Hide() end
 end)
+-- A rise is at once; a fall eases
 function W.fadeTo(f, alpha)
-	if math.abs(f:GetAlpha() - alpha) < 0.005 then
+	if alpha > f:GetAlpha() - 0.005 then
 		fading[f] = nil
 		f:SetAlpha(alpha)
 		return
