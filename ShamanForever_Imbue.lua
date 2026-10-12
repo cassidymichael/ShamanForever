@@ -104,6 +104,14 @@ local function imbueKeyFor(w)
 	end
 end
 
+-- The main hand's imbue: its key, "unknown" for one not recognised, false for none, nil when it can't
+-- be read
+function IM.mainHand()
+	local r = readMainHand()
+	if not r then return r end
+	return imbueKeyFor(r) or "unknown"
+end
+
 local NO_IMBUE = { 0.7, 0.7, 0.7 }
 function IM.barColor()
 	local r = readMainHand()

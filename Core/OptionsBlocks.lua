@@ -1,6 +1,7 @@
 -- Options kit: the standard blocks
 local _, ns = ...
 local E, G, Bars, P = ns.Elements, ns.Groups, ns.Bars, ns.Profiles
+local W = ns.Widgets
 
 local OP, Page = ns.Options, ns.Page
 local K = OP.kit
@@ -755,12 +756,12 @@ local function powerBadge(parent, title, tip)
 	local b = CreateFrame("Button", nil, parent)
 	setTip(b, title, tip)
 	b:SetSize(BADGE, BADGE)
-	b.edge = Page.disc(b, "ARTWORK", 0)
+	b.edge = W.disc(b, "ARTWORK", 0)
 	b.edge:SetAllPoints()
-	local face = { Page.disc(b, "ARTWORK", 1), Page.disc(b, "ARTWORK", 3), b:CreateTexture(nil, "ARTWORK", nil, 4) }
+	local face = { W.disc(b, "ARTWORK", 1), W.disc(b, "ARTWORK", 3), b:CreateTexture(nil, "ARTWORK", nil, 4) }
 	face[1]:SetSize(BADGE - 2, BADGE - 2)
 	face[1]:SetPoint("CENTER")
-	local sign = { Page.disc(b, "ARTWORK", 2), b:CreateTexture(nil, "ARTWORK", nil, 5) }
+	local sign = { W.disc(b, "ARTWORK", 2), b:CreateTexture(nil, "ARTWORK", nil, 5) }
 	sign[1]:SetSize(12, 12)
 	sign[1]:SetPoint("CENTER", 0, -1)
 	face[2]:SetSize(8, 8)

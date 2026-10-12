@@ -39,24 +39,27 @@ PREVIEW = {
 		bar:SetFrameLevel(h:GetFrameLevel() + 5)
 		h.barFrame = bar
 		h.slots = {}
+		local L = ns.TotemBar.LAYER
 		for i = 1, 4 do
 			local ic = OA.makePreviewIcon(bar, "totembar", PREVIEW)
 			ic.box = CreateFrame("Frame", nil, bar)
 			ic.badge = CreateFrame("Frame", nil, bar)
-			ic.badge:SetFrameLevel(ic:GetFrameLevel() + 6)
+			ic.badge:SetFrameLevel(ic:GetFrameLevel() + L.badge - L.look)
 			ic.badge.icon = ic.badge:CreateTexture(nil, "ARTWORK")
 			ic.badge.icon:SetAllPoints()
 			W.cropIcon(ic.badge.icon)
-			ic.rangeF = CreateFrame("Frame", nil, bar)
-			ic.rangeF:SetFrameLevel(ic:GetFrameLevel() + 7)
-			ic.rangeF.bg = ic.rangeF:CreateTexture(nil, "ARTWORK")
-			ic.rangeF.bg:SetAllPoints()
-			ns.StyleArt.followMask(ic, ic.rangeF.bg)
+			ic.rangeF = ns.TotemBar.range.newMark(bar, ic, ic:GetFrameLevel() + L.mark - L.look)
+			ic.rangeF:SetAlpha(1)
 			-- As the bar's slot look: TB.paintDown and TB.paintEmpty draw both
 			ic.icon = ic.tex
 			ic.bg = ic:CreateTexture(nil, "BACKGROUND")
 			ic.bg:SetAllPoints()
 			ic.killed = ns.Effects.endFlash(bar, ic, "totembar", ic)
+			-- As the bar's slot: the border's art and a theme's ring over the mark
+			ic.art = CreateFrame("Frame", nil, ic)
+			ic.art:SetAllPoints()
+			ic.art:SetFrameLevel(ic:GetFrameLevel() + L.art - L.look)
+			ic.noOverlay = true
 			h.slots[i] = ic
 		end
 		h.extras = {}
@@ -109,8 +112,9 @@ PREVIEW = {
 		local items = math.min(POP_ITEMS, 1 + #known)
 		local popLen = TB.popLength(items, psz)
 		local seq, along, line = TB.along(math.max(#places, 1), size)
-		local badge = st == "offpick" and c.offPick
-			and TB.badgeSize(size) + TB.skin.badgeGap(size) or 0
+		-- Room on the side away from the pickers: the badge, or a mark beside the slots
+		local badge = st == "offpick" and c.offPick and TB.badgeSize(size) + TB.skin.badgeGap(size, h.barFrame)
+			or st == "range" and TB.range.band(h.barFrame) and TB.skin.beside(size, h.barFrame).reach or 0
 		local across = line + (picking and (c.arrowSize + 4 + popLen) or 0) + badge
 		local w = h:GetWidth()
 		if not w or w <= 0 then w = 600 end
@@ -164,6 +168,7 @@ PREVIEW = {
 		end
 		local expEl = tContains(els, "fire") and "fire" or els[1]
 		h.endIcon = nil
+		local marked = false
 		for i, ic in ipairs(h.slots) do
 			local el = els[i]
 			ic:SetShown(el ~= nil)
@@ -174,6 +179,7 @@ PREVIEW = {
 				place(ic.box, slotAt[placeIdx[el]], (line - size) / 2)
 				ic.school = el
 				local o = ns.StyleArt.fit(ic, border, size)
+				ns.StyleArt.overlay(ic.art, border)
 				TB.skin.dressSlot(ic, el, size - 2 * o)
 				ic:ClearAllPoints()
 				place(ic, slotAt[placeIdx[el]] + o, (line - size) / 2 + o)
@@ -184,22 +190,20 @@ PREVIEW = {
 				ic.killed:setIcon(pick or TB.TOTEM_ICON[el])
 				if st ~= "killed" or el ~= expEl then ic.killed:stop() end
 				ic.badge:Hide()
-				if st == "range" and c.range then
+				-- Out of range as the bar draws it: on the first slot whose pick buffs you (or has none); in
+				-- range on the others like it, while that's on
+				local pickID = st == "range" and c.range and TB.pickSpell(el)
+				if st == "range" and c.range and (not marked or c.rangeShow == "both")
+					and (pickID == nil or TB.range.covers(el, pickID)) then
+					local which = marked and "in" or "out"
+					marked = true
 					local f = ic.rangeF
+					local x, y, mw, mh, kind = TB.range.rect(ic, size, o)
 					f:ClearAllPoints()
-					local x, y, mw, mh = TB.skin.markRect(f, size, o)
-					if x then
-						f:SetPoint("TOPLEFT", ic.box, "TOPLEFT", x, y)
-						f:SetSize(mw, mh)
-						f:SetShown(i == 1 and TB.skin.paintMark(f, mw, mh, ic))
-					else
-						local k = i == 1 and c.rangeOut or c.rangeIn
-						f:SetPoint("TOPLEFT", ic, "TOPLEFT", 0, 0)
-						f:SetSize(size - 2 * o, W.linePx(ic, c.rangeHeight))
-						TB.skin.paintMark(f)
-						f.bg:SetColorTexture(k[1], k[2], k[3], k[4] or 1)
-						f:Show()
-					end
+					f:SetPoint("TOPLEFT", ic.box, "TOPLEFT", x, y)
+					f:SetSize(mw, mh)
+					TB.range.paint(f, kind, which)
+					f:Show()
 				end
 				TB.paintLow(ic, st == "mana" and i == 1 and TB.feat("cast") and c.mana.on == true)
 				if st == "offpick" and i == 1 then
@@ -535,17 +539,43 @@ local function build(p)
 
 	p.gate = TB.barOn
 	p:header("Out of range")
-	p:text("A strip along the top of a slot shows whether you're getting your own totem's buff, for totems that buff "
-		.. "you. In range shows nothing at 0% opacity, the default.",
-		free("range"))
-	p:text(function() return TB.skin.rangeText() or "" end, owned("range"))
+	p:text("Shows when you're out of range of your totems that buff you.")
+	local untested = TB.range.untested()
+	if #untested > 0 then
+		local expRange = p:row(22)
+		local names = expRange:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+		names:SetPoint("LEFT", 4, 0)
+		names:SetText(table.concat(untested, ", "))
+		ns.OptionsArt.expBadge(expRange, "Out of range"):SetPoint("LEFT", names, "RIGHT", 10, 0)
+		p:add(expRange, 22)
+	end
 	local range = p:checkbox("Show", nil, tget("range"), tset("range"))
 	p:sub(range, tget("range"), function()
-		tslider("Height", "In pixels.", px, "rangeHeight", free("rangeHeight"))
-		p:color("In range", "Colour and opacity.", tget("rangeIn"), tset("rangeIn"), free("range"))
-		p:color("Out of range", "Colour and opacity.", tget("rangeOut"), tset("rangeOut"), free("range"))
-		p:text("A buff lingers a few seconds after you leave its range. Another shaman's totem of the same type can "
-			.. "replace your buff, so yours shows as out of range.")
+		local marks = p:dropdown("Marks", nil, { { "out", "Out of range only" }, { "both", "Out of range and in range" } },
+			tget("rangeShow"), tset("rangeShow"), nil, 240)
+		p:sub(marks, function() return c().rangeShow == "both" end, function()
+			p:color("In range colour", "Colour and opacity.", tget("rangeInColor"), tset("rangeInColor"))
+			p:text("Shows while your own totem's buff is on you.")
+		end)
+		p:color("Colour", "Colour and opacity.", tget("rangeOut"), tset("rangeOut"))
+		local shape = p:dropdown("Shape", nil, { { "strip", "Strip" }, { "dot", "Dot" } }, tget("rangeShape"),
+			tset("rangeShape"), nil, 190)
+		p:sub(shape, nil, function()
+			local function is(v) return function() return c().rangeShape == v end end
+			tslider("Bar thickness", "In pixels.", px, "rangeHeight", is("strip"))
+			tslider("Dot size", "In pixels.", px, "rangeDotSize", is("dot"))
+			tslider("X offset", "From its place. It stays inside the icon, or beside it.", px, "rangeDotX", is("dot"))
+			tslider("Y offset", "From its place. It stays inside the icon, or beside it.", px, "rangeDotY", is("dot"))
+		end)
+		local place = p:dropdown("Place", "Beside: on the side away from the pickers.",
+			{ { "in", "In the icon" }, { "out", "Beside the icon" } }, tget("rangePlace"), tset("rangePlace"), nil, 190)
+		p:sub(place, function() return c().rangePlace == "out" end, function()
+			tslider("Distance", "From the icon or the time bar.", px, "rangeGap")
+			p:dropdown("Order", nil, { { "after", "Time bar nearer the icon" }, { "before", "Mark nearer the icon" } },
+				tget("rangeOrder"), tset("rangeOrder"), function() return TB.skin.place("barPlace") == "out"
+					and ns.Style.value("totembar", "uptime", "bar") == true end, 240)
+		end)
+		p:text("It can take a few seconds to show you've left range as the buff lingers.")
 	end)
 
 	p.gate = full
@@ -645,7 +675,7 @@ local function build(p)
 	p.gate = full
 	K.gcdBlock(p, "totembar")
 	p.gate = TB.barOn
-	local function beside() return TB.skin.barPlace() == "out" end
+	local function beside() return TB.skin.place("barPlace") == "out" end
 	K.timerSettings(p, "Time left", "totembar", "uptime", changed, nil, nil, beside)
 	p:dropdown("Time bar position", "Beside the icon: on the side away from the pickers.",
 		{ { "in", "In the icon" }, { "out", "Beside the icon" } }, tget("barPlace"), tset("barPlace"),
@@ -668,6 +698,12 @@ local function build(p)
 	p.gate = nil
 end
 
+local experiments = { { "Totem sets", "Totem sets, once you know a second Call" } }
+local untested = ns.TotemBar.range.untested()
+if #untested > 0 then
+	table.insert(experiments, { "Out of range for " .. table.concat(untested, ", "), "Out of range" })
+end
+if ns.TotemBar.skin.experimental() then table.insert(experiments, { "Totem themes", "Totem theme" }) end
 Bars.register("totembar", { icon = "Interface\\Icons\\Spell_Shaman_DropAll_01",
 	school = ns.THEME.fallback,
 	blurb = "Your totems, their timers, and a pick for each element.",
@@ -681,7 +717,6 @@ Bars.register("totembar", { icon = "Interface\\Icons\\Spell_Shaman_DropAll_01",
 	end,
 	preview = PREVIEW, page = { order = 50, build = build },
 	ownSize = function() return not ns.TotemBar.cfg().sizeFollow end,
-	experiments = { { "Totem sets", "Totem sets, once you know a second Call" },
-		ns.TotemBar.skin.experimental() and { "Totem themes", "Totem theme" } or nil },
+	experiments = experiments,
 	tiles = { icon = ns.TotemBar.TOTEM_ICON.earth, schools = ns.TotemBar.ELEMENTS,
 		border = function() return select(2, ns.TotemBar.look()) end } })

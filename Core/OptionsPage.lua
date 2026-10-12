@@ -1045,20 +1045,10 @@ end
 
 -- Switches (Page.pillSwitch, Page.boxSwitch): show(on), nudge(), and flip(), the click; a refused one
 -- shakes and stays as get() says
-local ROUND = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
 local SLIDE, SHAKE = 0.12, 0.24
 local GOLD_TEXT, GREY_TEXT = { 1, 0.82, 0 }, { 0.5, 0.5, 0.5 }
 local Switch = {}
 
--- A round texture: a colour under the client's round portrait mask
-function Page.disc(parent, layer, sub)
-	local t = parent:CreateTexture(nil, layer, nil, sub)
-	local m = parent:CreateMaskTexture()
-	m:SetTexture(ROUND, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
-	m:SetAllPoints(t)
-	t:AddMaskTexture(m)
-	return t
-end
 local function mix(a, b, f) return a + (b - a) * f end
 
 -- One ticker moves every switch in motion, made at the first
@@ -1170,14 +1160,14 @@ function Page.pillSwitch(parent, get, set, title, tip, word)
 	sw.fill:SetAtlas(BAR .. "Fill-Yellow", false)
 	sw.fill:SetPoint("LEFT", FILL_IN, 0)
 	sw.fill:SetHeight(FILL_H)
-	sw.knob = Page.disc(sw, "OVERLAY", 0)
+	sw.knob = W.disc(sw, "OVERLAY", 0)
 	sw.knob:SetSize(KNOB, KNOB)
 	sw.knob:SetColorTexture(KNOB_RIM[1], KNOB_RIM[2], KNOB_RIM[3], 1)
-	sw.knobFace = Page.disc(sw, "OVERLAY", 1)
+	sw.knobFace = W.disc(sw, "OVERLAY", 1)
 	sw.knobFace:SetSize(KNOB - 2, KNOB - 2)
 	sw.knobFace:SetPoint("CENTER", sw.knob)
 	sw.knobFace:SetColorTexture(1, 1, 1, 1)
-	local hi = Page.disc(sw, "OVERLAY", 2)
+	local hi = W.disc(sw, "OVERLAY", 2)
 	hi:SetSize(KNOB / 2, KNOB / 3)
 	hi:SetPoint("TOP", sw.knob, "TOP", 0, -2)
 	hi:SetColorTexture(KNOB_HI[1], KNOB_HI[2], KNOB_HI[3], KNOB_HI[4])

@@ -86,6 +86,7 @@ read_globals = {
     "GetPhysicalScreenSize",
     "GetRealZoneText",
     "GetRealmName",
+    "GetShapeshiftFormID",
     "GetText",
     "GetTime",
     "GetTotemDuration",

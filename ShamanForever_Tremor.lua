@@ -27,7 +27,8 @@ local plain = ns.plain
 local function styleWord(fs, icon) W.styleWord(fs, icon, own) end
 
 local def = { key = KEY, spellKey = "tremor", icon = 136108, school = "earth", duration = 300, readsTotems = true,
-	defaults = { idleAlpha = 0, idleWhen = "nowarning", tremorTarget = true, tremorPlates = true, tremorFeared = false,
+	defaults = { on = false, idleAlpha = 0, idleWhen = "nowarning", tremorTarget = true, tremorPlates = true,
+		tremorFeared = false,
 		active = { pop = true, glow = true, text = true, sound = "none" },
 		mana = { on = true } },
 	ranges = {},

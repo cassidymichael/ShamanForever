@@ -18,13 +18,18 @@ local spells = {}
 local slotByID, slotByName = {}, {}
 local listeners = {}
 
--- fn(event, slot, ...): "cast" (slot, spell key), "gone" (slot, last duration object)
+-- fn(event, slot, ...): "cast" (slot, spell key), "gone" (slot, last duration object), "dismissed" (slot)
 function TO.subscribe(fn) table.insert(listeners, fn) end
 local function notify(...) for _, fn in ipairs(listeners) do fn(...) end end
 
 -- Dismissals all go through DestroyTotem
 local dismissedAt = {}
-if DestroyTotem then hooksecurefunc("DestroyTotem", function(slot) dismissedAt[slot] = GetTime() end) end
+if DestroyTotem then
+	hooksecurefunc("DestroyTotem", function(slot)
+		dismissedAt[slot] = GetTime()
+		notify("dismissed", slot)
+	end)
+end
 
 -- A totem is out only when it has a name (an empty slot can report haveTotem)
 function TO.read(slot)
@@ -107,7 +112,10 @@ end
 
 function TO.onCast(spellID)
 	if Spells.keyOf(spellID) == "recall" then
-		for s = 1, 4 do dismissedAt[s] = GetTime() end
+		for s = 1, 4 do
+			dismissedAt[s] = GetTime()
+			notify("dismissed", s)
+		end
 	end
 	local slot = slotByID[spellID]
 	if not slot then

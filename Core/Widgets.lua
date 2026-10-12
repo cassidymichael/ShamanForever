@@ -199,6 +199,17 @@ function W.linePx(frame, n)
 	return count * W.pixel(frame)
 end
 
+-- A round texture: a colour under the client's round portrait mask
+local ROUND = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
+function W.disc(parent, layer, sub)
+	local t = parent:CreateTexture(nil, layer, nil, sub)
+	local m = parent:CreateMaskTexture()
+	m:SetTexture(ROUND, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+	m:SetAllPoints(t)
+	t:AddMaskTexture(m)
+	return t
+end
+
 -- A thin scroll bar line, in the options nav list's colours: line:update(height, from, shown), from and
 -- shown being the part in view as fractions of the whole
 local SCROLL_LINE_PX = 3
@@ -758,13 +769,247 @@ function W.makeWarnOverlay(f)
 	return w
 end
 
--- Clip look: shown exactly while an aura is gone (inverted: while it is up), in combat too, nothing
--- read. A sensor container sizes to its aura button; a clip frame of ours shows the look only
--- within that. A change waiting for combat's end is a miss, never a false warning.
-local ClipLook = {}
-ClipLook.__index = ClipLook
+-- Aura gate: a clip of ours open exactly while an aura is gone (invert: while it is up), in combat too,
+-- nothing read. A sensor container hung from the cell sizes to its aura button; the clip shows what
+-- hangs in its area only within that. A change waiting for combat's end is a miss, never a false warning.
+-- opts: frame (the hold covers it; its strata the container's), parent (the hold's), sensorParent (the
+-- cell's and the container's: hidden, the sensor stops), unit ("player" or a function), filter (default
+-- HELPFUL), ids() or candidates(), invert, name (the container's), group (default key), sites.container,
+-- .style, .filter. The caller anchors the cell (out of combat).
+-- Fields callers read: hold, cell, clip, area, container, unit, applied, err.
+local AuraGate = {}
+AuraGate.__index = AuraGate
 -- The sensor's button is this much wider than the cell: the clip empty, not 1 px.
 local CLIP_SLACK = 2
+-- The cell's left units a missing gate never shows: the empty sensor's width, and one spare
+W.AURA_GATE_EDGE = 2
+
+function W.initAuraGate(g, opts)
+	g.opts = opts
+	g.shownOn = true
+	g.hold = CreateFrame("Frame", nil, opts.parent)
+	g.hold:SetAllPoints(g.frame)
+	g.hold:SetAlpha(0)
+	g.hold:SetScript("OnShow", function() g:held() end)
+	g.tick = function(f)
+		g.waiting = g.waiting - 1
+		if g.waiting > 0 then return end
+		g.waiting = nil
+		f:SetScript("OnUpdate", nil)
+		g:update()
+	end
+	g.cell = CreateFrame("Frame", nil, opts.sensorParent)
+	g.cell:SetSize(1, 1)
+	g.clip = CreateFrame("Frame", nil, g.hold, "DisableUntrustedLayoutScriptsTemplate")
+	g.clip:SetClipsChildren(true)
+	g.clip:SetPoint("TOPLEFT", g.cell, "TOPRIGHT", 0, 0)
+	g.clip:SetPoint("BOTTOMRIGHT", g.cell, "BOTTOMRIGHT", 0, 0)
+	g.area = CreateFrame("Frame", nil, g.clip, "DisableUntrustedLayoutScriptsTemplate")
+	g.area:SetAllPoints(g.cell)
+	return g
+end
+
+function W.makeAuraGate(opts)
+	return W.initAuraGate(setmetatable({ frame = opts.frame }, AuraGate), opts)
+end
+
+-- Hold at 0 now, back on its second OnUpdate: Blizzard's container updates on its next OnUpdate
+-- after a change.
+function AuraGate:wait()
+	self.waiting = 2
+	self.hold:SetAlpha(0)
+	self.hold:SetScript("OnUpdate", self.tick)
+end
+AuraGate.held = AuraGate.wait
+
+-- Its sensor made, matching, settled, shown and laid out for sig (default: the one last asked)
+function AuraGate:ready(sig)
+	if sig == nil then sig = self.asked end
+	return self.container ~= nil and not self.err and self.idsOK == true and not self.waiting
+		and self.shownOn == true and self.sig == sig
+end
+
+function AuraGate:update()
+	self.hold:SetAlpha((self.wanted and self:ready()) and 1 or 0)
+end
+
+function AuraGate:want(on)
+	self.wanted = on and true or false
+	self:update()
+end
+
+local function clipTo(self, c)
+	self.clip:ClearAllPoints()
+	if self.opts.invert then
+		self.clip:SetPoint("TOPLEFT", c, "TOPLEFT", 0, 0)
+		self.clip:SetPoint("BOTTOMRIGHT", c, "BOTTOMRIGHT", -CLIP_SLACK, 0)
+	else
+		self.clip:SetPoint("TOPLEFT", c, "TOPRIGHT", 0, 0)
+		self.clip:SetPoint("BOTTOMRIGHT", self.cell, "BOTTOMRIGHT", 0, 0)
+	end
+end
+
+-- Its sensor, with the cell at w by h, laid out for sig (out of combat, auras readable)
+function AuraGate:make(w, h, sig)
+	local o = self.opts
+	local filters = candidates(o)
+	local unit = type(o.unit) == "function" and o.unit() or o.unit or "player"
+	local ok, err = pcall(function()
+		local c = CreateFrame("AuraContainer", o.name, o.sensorParent, "CustomAuraContainerTemplate")
+		c:SetPoint("TOPLEFT", self.cell, "TOPLEFT", 0, 0)
+		c:SetFrameStrata(self.frame:GetFrameStrata())
+		c:SetUnit(unit)
+		pcall(c.EnableMouse, c, false)
+		pcall(c.SetFlowLayoutPadding, c, 0, 0, 0, 0)   -- empty is 1 px wide (its layout's least)
+		self.container = c
+		self.unit = unit
+		self.cell:SetSize(w, h)
+		c:AddAuraGroup(o.group or o.key, o.filter or "HELPFUL", {
+			candidateFilters = filters, maxFrameCount = 1,
+			layout = { elementWidth = w + CLIP_SLACK, elementHeight = h },
+			initializeFrame = function(b)
+				b:SetSize(1, 1)
+				W.noMouse(b)
+			end,
+		})
+		clipTo(self, c)
+	end)
+	if not ok then
+		self.err = tostring(err)
+		if self.container then self.container:Hide() end
+		ns.noteError(o.sites.container, self.err)
+		self:update()
+		return
+	end
+	self.width, self.height = w, h
+	self:took(sig, filters)
+	self:wait()
+end
+
+-- The cell at w by h for sig; retry(): the same call, when it waits
+function AuraGate:layoutTo(w, h, sig, retry)
+	if w == self.width and h == self.height then
+		self:took(sig)
+		return
+	end
+	local o = self.opts
+	if ns.deferWhileAurasSecret(o.sites.style, retry) then return end
+	self:wait()
+	local ok = ns.try(o.sites.style, function()
+		self.container:SetFrameStrata(self.frame:GetFrameStrata())
+		self.container:SetAuraGroupLayout(o.group or o.key,
+			{ elementWidth = w + CLIP_SLACK, elementHeight = h })
+		self.cell:SetSize(w, h)
+	end)
+	if ok then
+		self.width, self.height = w, h
+		self:took(sig)
+	else
+		ns.retryAfterCombat(o.sites.style, retry)
+	end
+end
+
+-- Its cell at w by h, for sig (what the caller laid it out for): made the first time. Ready only once
+-- it took; out of combat and with auras readable, waiting for both.
+function AuraGate:resize(w, h, sig)
+	self.asked = sig
+	self:update()
+	if self.err then return end
+	local function retry() self:resize(w, h, sig) end
+	if self.container then
+		self:layoutTo(w, h, sig, retry)
+	elseif not ns.deferWhileAurasSecret(self.opts.sites.container, retry) then
+		self:make(w, h, sig)
+	end
+end
+
+function AuraGate:took(sig, filters)
+	if sig then self.sig = sig end
+	if filters then
+		self.applied = filterSig(filters)
+		self.filtered = {}
+		for id in pairs(filters.includeSpellIDs or {}) do self.filtered[id] = true end
+	end
+	self:checkIDs()
+end
+
+-- Every ID of ids() must be in it: a sensor missing one would stay empty over that aura, a false
+-- warning.
+function AuraGate:checkIDs()
+	local o, ok = self.opts, false
+	if o.candidates then ok = self.applied ~= nil and self.applied == filterSig(o.candidates())
+	elseif self.filtered then
+		ok = true
+		for id in pairs(o.ids()) do
+			if not self.filtered[id] then ok = false break end
+		end
+	end
+	self.idsOK = ok
+	self:update()
+end
+
+-- Only when the filters changed: a refilter holds the gate shut for two frames
+function AuraGate:refilter()
+	if not self.container or self.err then return end
+	local o = self.opts
+	if ns.deferWhileAurasSecret(o.sites.filter, function() self:refilter() end) then return end
+	local filters = candidates(o)
+	if filterSig(filters) == self.applied then return end
+	self:wait()
+	if ns.try(o.sites.filter, self.container.SetAuraGroupCandidateFilters, self.container, o.group or o.key,
+		filters) then
+		self:took(nil, filters)
+	else
+		ns.retryAfterCombat(o.sites.filter, function() self:refilter() end)
+	end
+end
+
+-- Allowed in combat: Blizzard restricts the aura button, not the container.
+function AuraGate:follow(unit)
+	local c = self.container
+	if not c or self.err then return true end
+	local ok = true
+	if self.unit ~= unit then ok = ns.try(self.opts.sites.container .. " unit", c.SetUnit, c, unit)
+	elseif unit ~= "none" then
+		ok = ns.try(self.opts.sites.container .. " refresh", c.UpdateAllAuras, c)
+	end
+	self.unit = ok and unit or nil
+	self:wait()
+	return ok
+end
+
+-- Hidden while its owner is off, so its sensor stops following auras (out of combat). Not ready while
+-- hidden: shown again, its size is stale until it updates.
+function AuraGate:setShown(on)
+	local c = self.container
+	if not c or self.err then return end
+	local site = self.opts.sites.container .. " shown"
+	if ns.deferInCombat(site, function() self:setShown(on) end) then return end
+	on = on and true or false
+	if self.shownOn == on then return end
+	c:SetShown(on)
+	self.shownOn = on
+	if on then self:wait() else self:update() end
+end
+
+function AuraGate:setLevel(lv)
+	for _, f in ipairs({ self.hold, self.clip, self.area }) do
+		f:SetFrameLevel(lv)
+	end
+end
+
+function AuraGate:describe()
+	return string.format("%ssensor %s%s, laid out %s, filters %s, unit %s, shown %s, wanted %s, waiting %s",
+		self.opts.invert and "while up: " or "",
+		self.container and "made" or "not made", self.err and (" (error: " .. self.err .. ")") or "",
+		self.sig ~= nil and self.sig == self.asked and "yes" or "behind", self.idsOK and "matched" or "behind",
+		tostring(self.unit), tostring(self.shownOn), tostring(self.wanted), tostring(self.waiting ~= nil))
+end
+
+-- Clip look: an element's picture, ring, pulse and glow on an aura gate (W.initAuraGate), shown exactly
+-- while an aura is gone (inverted: while it is up).
+local ClipLook = setmetatable({}, { __index = AuraGate })
+ClipLook.__index = ClipLook
 -- The look's reach in icon widths: 1.7 covers the widest (the Proc glow's burst, 150/45); a wider
 -- look needs it raised.
 local CLIP_REACH = 1.7
@@ -779,30 +1024,9 @@ local function shapeTextures(frame, f, over)
 end
 
 function W.makeClipLook(frame, opts)
-	local h = setmetatable({ frame = frame, opts = opts }, ClipLook)
-	h.hold = CreateFrame("Frame", nil, opts.parent)
-	h.hold:SetAllPoints(frame)
-	h.hold:SetAlpha(0)
-	h.hold:SetScript("OnShow", function()
-		h:wait()
-		if h.fadeOn then h.pulse:Play() end
-	end)
-	h.tick = function(f)
-		h.waiting = h.waiting - 1
-		if h.waiting > 0 then return end
-		h.waiting = nil
-		f:SetScript("OnUpdate", nil)
-		h:update()
-	end
-	h.cell = CreateFrame("Frame", nil, opts.sensorParent)
+	local h = W.initAuraGate(setmetatable({ frame = frame }, ClipLook), opts)
 	h.cell:SetPoint("CENTER", frame, "CENTER", 0, 0)
-	h.cell:SetSize(1, 1)
-	h.clip = CreateFrame("Frame", nil, h.hold, "DisableUntrustedLayoutScriptsTemplate")
-	h.clip:SetClipsChildren(true)
-	h.clip:SetPoint("TOPLEFT", h.cell, "TOPRIGHT", 0, 0)
-	h.clip:SetPoint("BOTTOMRIGHT", h.cell, "BOTTOMRIGHT", 0, 0)
-	h.look = CreateFrame("Frame", nil, h.clip, "DisableUntrustedLayoutScriptsTemplate")
-	h.look:SetAllPoints(h.cell)
+	h.look = h.area
 	h.art = CreateFrame("Frame", nil, h.look)
 	h.art:SetAllPoints(frame)
 	h.tex = h.art:CreateTexture(nil, "ARTWORK")
@@ -823,6 +1047,11 @@ function W.makeClipLook(frame, opts)
 	return h
 end
 
+function ClipLook:held()
+	self:wait()
+	if self.fadeOn then self.pulse:Play() end
+end
+
 -- Wide enough for the art frame on a look that carries the border
 local function cellWidth(size, frame, o)
 	local half = CLIP_REACH * (size + 2 * ns.StyleArt.outerEdge(frame))
@@ -833,28 +1062,12 @@ local function cellWidth(size, frame, o)
 	return math.ceil(2 * half)
 end
 
--- Hold at 0 now, back on its second OnUpdate: Blizzard's container updates on its next OnUpdate
--- after a change.
-function ClipLook:wait()
-	self.waiting = 2
-	self.hold:SetAlpha(0)
-	self.hold:SetScript("OnUpdate", self.tick)
-end
-
+-- Laid out for the element's icon size
 function ClipLook:ready()
 	local o = self.opts
-	return self.container ~= nil and not self.err and self.idsOK == true and not self.waiting
-		and self.size == ns.Elements.sizeOf(o.key) and (o.needUnit == nil or self.unit == o.needUnit)
+	return AuraGate.ready(self, ns.Elements.sizeOf(o.key))
+		and (o.needUnit == nil or self.unit == o.needUnit)
 		and (o.agrees == nil or o.agrees() == true)
-end
-
-function ClipLook:update()
-	self.hold:SetAlpha((self.wanted and self:ready()) and 1 or 0)
-end
-
-function ClipLook:want(on)
-	self.wanted = on and true or false
-	self:update()
 end
 
 function ClipLook:setParts(grey, tint, ring, fade, glow)
@@ -884,83 +1097,18 @@ function ClipLook:reshape()
 	self.glow:restyle()
 end
 
-local function clipTo(self, c)
-	self.clip:ClearAllPoints()
-	if self.opts.invert then
-		self.clip:SetPoint("TOPLEFT", c, "TOPLEFT", 0, 0)
-		self.clip:SetPoint("BOTTOMRIGHT", c, "BOTTOMRIGHT", -CLIP_SLACK, 0)
-	else
-		self.clip:SetPoint("TOPLEFT", c, "TOPRIGHT", 0, 0)
-		self.clip:SetPoint("BOTTOMRIGHT", self.cell, "BOTTOMRIGHT", 0, 0)
-	end
-end
-
 function ClipLook:setup()
 	if self.container or self.err then return end
 	local o = self.opts
 	if ns.deferWhileAurasSecret(o.sites.container, function() self:setup() end) then return end
 	local size = ns.Elements.sizeOf(o.key)
 	local w = cellWidth(size, self.frame, o)
-	local filters = candidates(o)
-	local unit = type(o.unit) == "function" and o.unit() or o.unit or "player"
-	local ok, err = pcall(function()
-		local c = CreateFrame("AuraContainer", nil, o.sensorParent, "CustomAuraContainerTemplate")
-		c:SetPoint("TOPLEFT", self.cell, "TOPLEFT", 0, 0)
-		c:SetFrameStrata(self.frame:GetFrameStrata())
-		c:SetUnit(unit)
-		pcall(c.EnableMouse, c, false)
-		pcall(c.SetFlowLayoutPadding, c, 0, 0, 0, 0)   -- empty is 1 px wide (its layout's least)
-		self.container = c
-		self.unit = unit
-		self.cell:SetSize(w, w)
-		c:AddAuraGroup(o.key, o.filter or "HELPFUL", {
-			candidateFilters = filters, maxFrameCount = 1,
-			layout = { elementWidth = w + CLIP_SLACK, elementHeight = w },
-			initializeFrame = function(b)
-				b:SetSize(1, 1)
-				W.noMouse(b)
-			end,
-		})
-		clipTo(self, c)
-	end)
-	if not ok then
-		self.err = tostring(err)
-		if self.container then self.container:Hide() end
-		ns.noteError(o.sites.container, self.err)
-		self:update()
-		return
-	end
-	self.width = w
-	self:took(size, filters)
-	self:wait()
+	self:make(w, w, size)
 end
 
 function ClipLook:took(size, filters)
-	if size then
-		self.size = size
-		if self.glow then self.glow:fit(size) end
-	end
-	if filters then
-		self.applied = filterSig(filters)
-		self.filtered = {}
-		for id in pairs(filters.includeSpellIDs or {}) do self.filtered[id] = true end
-	end
-	self:checkIDs()
-end
-
--- Every ID of ids() must be in it: a sensor missing one would stay empty over that aura, a false
--- warning.
-function ClipLook:checkIDs()
-	local o, ok = self.opts, false
-	if o.candidates then ok = self.applied ~= nil and self.applied == filterSig(o.candidates())
-	elseif self.filtered then
-		ok = true
-		for id in pairs(o.ids()) do
-			if not self.filtered[id] then ok = false break end
-		end
-	end
-	self.idsOK = ok
-	self:update()
+	if size and self.glow then self.glow:fit(size) end
+	AuraGate.took(self, size, filters)
 end
 
 -- Waits for combat's end; the hold stays at 0 meanwhile.
@@ -974,68 +1122,9 @@ function ClipLook:style()
 	end)
 end
 function ClipLook:styleNow()
-	local o = self.opts
-	local size = ns.Elements.sizeOf(o.key)
-	local w = cellWidth(size, self.frame, o)
-	if w == self.width then
-		self:took(size)
-		return
-	end
-	if ns.deferWhileAurasSecret(o.sites.style, function() self:styleNow() end) then return end
-	self:wait()
-	local ok = ns.try(o.sites.style, function()
-		self.container:SetFrameStrata(self.frame:GetFrameStrata())
-		self.container:SetAuraGroupLayout(o.key,
-			{ elementWidth = w + CLIP_SLACK, elementHeight = w })
-		self.cell:SetSize(w, w)
-	end)
-	if ok then
-		self.width = w
-		self:took(size)
-	else
-		ns.retryAfterCombat(o.sites.style, function() self:styleNow() end)
-	end
-end
-
--- Only when the filters changed: a refilter holds the look off for two frames
-function ClipLook:refilter()
-	if not self.container or self.err then return end
-	local o = self.opts
-	if ns.deferWhileAurasSecret(o.sites.filter, function() self:refilter() end) then return end
-	local filters = candidates(o)
-	if filterSig(filters) == self.applied then return end
-	self:wait()
-	if ns.try(o.sites.filter, self.container.SetAuraGroupCandidateFilters, self.container, o.key, filters) then
-		self:took(nil, filters)
-	else
-		ns.retryAfterCombat(o.sites.filter, function() self:refilter() end)
-	end
-end
-
--- Allowed in combat: Blizzard restricts the aura button, not the container.
-function ClipLook:follow(unit)
-	local c = self.container
-	if not c or self.err then return true end
-	local ok = true
-	if self.unit ~= unit then ok = ns.try(self.opts.sites.container .. " unit", c.SetUnit, c, unit)
-	elseif unit ~= "none" then
-		ok = ns.try(self.opts.sites.container .. " refresh", c.UpdateAllAuras, c)
-	end
-	self.unit = ok and unit or nil
-	self:wait()
-	return ok
-end
-
--- Hidden while its owner is off, so its sensor stops following auras (out of combat)
-function ClipLook:setShown(on)
-	local c = self.container
-	if not c or self.err then return end
-	local site = self.opts.sites.container .. " shown"
-	if ns.deferInCombat(site, function() self:setShown(on) end) then return end
-	on = on and true or false
-	if c:IsShown() == on then return end
-	c:SetShown(on)
-	if on then self:wait() end
+	local size = ns.Elements.sizeOf(self.opts.key)
+	local w = cellWidth(size, self.frame, self.opts)
+	self:layoutTo(w, w, size, function() self:styleNow() end)
 end
 
 -- up: the glow's level over the look (2 over a look whose edge carries an art frame)
@@ -1054,7 +1143,7 @@ function ClipLook:describe()
 		"%ssensor %s%s, size %s (icon %s), filters %s, unit %s, wanted %s, waiting %s%s",
 		self.opts.invert and "while up: " or "",
 		self.container and "made" or "not made", self.err and (" (error: " .. self.err .. ")") or "",
-		tostring(self.size), tostring(ns.Elements.sizeOf(self.opts.key)),
+		tostring(self.sig), tostring(ns.Elements.sizeOf(self.opts.key)),
 		not self.idsOK and "behind" or (self.opts.agrees and not self.opts.agrees()) and "not the slot's"
 			or "matched",
 		tostring(self.unit), tostring(self.wanted), tostring(self.waiting ~= nil),

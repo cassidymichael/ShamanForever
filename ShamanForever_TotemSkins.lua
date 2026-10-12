@@ -1,10 +1,9 @@
 -- Totem bar themes (a "look" in the code, `skin` in its settings), and the Totem band group art frame
--- Each look is a data entry; the bar, its range strip and the options' preview call the functions
--- below, which leave everything as it was for Default and take down what another look drew.
+-- Each look is a data entry; the bar and the options' preview call the functions below, which leave
+-- everything as it was for Default and take down what another look drew.
 -- A look can own some of the bar's settings (`owns`): the options hide them, the player's own value
 -- stays saved.
--- Nothing here reads a totem or an aura. The out-of-range mark keeps the strip's rule: it sits under
--- Blizzard's aura button.
+-- Nothing here reads a totem or an aura.
 
 local ADDON, ns = ...
 local W = ns.Widgets
@@ -17,7 +16,6 @@ TB.skin = TH
 local S, FR = ns.Style, ns.Frames
 local BLACK = { 0, 0, 0, 1 }
 local GOLD = ns.StyleArt.GOLD
-local RED = { 0.9, 0.12, 0.08, 1 }
 local TRAY = { 0.047, 0.035, 0.024 }
 local THEME = ns.THEME
 
@@ -30,7 +28,7 @@ local BLIZZ = "Interface\\Buttons\\UI-TotemBar"
 local BZ = {
 	empty = { earth = { 66, 96, 3, 33 }, fire = { 67, 97, 100, 130 }, water = { 39, 69, 209, 239 },
 		air = { 66, 96, 36, 66 } },
-	ring = { earth = { 1, 35, 172, 206 }, fire = { 36, 70, 172, 206 }, water = { 1, 35, 207, 240 },
+	ring = { earth = { 1, 35, 172, 206 }, fire = { 36, 70, 172, 206 }, water = { 1, 35, 207, 241 },
 		air = { 36, 70, 137, 171 }, spell = { 1, 35, 137, 171 } },
 	top = { earth = { 0, 32, 46, 68 }, fire = { 33, 65, 46, 68 }, water = { 0, 32, 1, 23 },
 		air = { 0, 32, 91, 113 }, spell = { 33, 65, 1, 23 } },
@@ -97,7 +95,8 @@ FR.addGroupStyle("totemband", { name = "Totem band", group = "painted", credit =
 -- The looks, in the order the options offer them. Entry fields: name, experimental, owns, border,
 -- extrasBorder, behind, plinth (PLINTH_ART key) and plinthSize(), extrasScaleKey, fixedSlots (every
 -- element keeps a place; unshown ones are sealed sockets), dress (per-button art: "blizzard",
--- "plates", "boss"), timeBar, mark, picker, arrow, badgeGap(size), rangeText
+-- "plates", "boss"), dressInset (the share of the picture its dress covers from the edge), timeBar,
+-- picker, arrow, badgeGap(size)
 TH.LIST, TH.byKey = {}, {}
 local function add(key, entry)
 	entry.key = key
@@ -148,12 +147,11 @@ DEFAULT = TH.byKey.default
 
 add("pixel", {
 	name = "Pixel", experimental = true,
-	owns = { border = true, range = true },
+	owns = { border = true },
 	border = function() return borderStyle("schooledge", TB.cfg().pixelEdge) end,
 	extrasBorder = borderStyle("hairline"),
-	behind = "tray", timeBar = "tip", mark = "edge",
+	behind = "tray", timeBar = "tip",
 	picker = "tray",
-	rangeText = "Out of range, for totems that buff you: a red edge along the top of the slot.",
 })
 
 -- Stone and bronze: a carved plinth (fixed art sets the spacing, a row, pickers up), Call and Recall
@@ -205,20 +203,9 @@ add("blizzard", {
 	name = "Blizzard's totem bar", experimental = true,
 	owns = { border = true, spacing = 8 / 30, extrasGapShare = 8 / 30, dir = "row", extras = "ends" },
 	border = borderStyle("totembare"), extrasBorder = borderStyle("totembare"),
-	dress = "blizzard", picker = "blizzard", arrow = "blizzard",
+	dress = "blizzard", dressInset = 3 / 30, picker = "blizzard", arrow = "blizzard",
 	badgeGap = function(size) return math.floor(size * 2 / 30 + 0.5) end,
 })
-
-function TH.mark()
-	local m = TH.current().mark
-	if type(m) == "function" then return m() end
-	return m
-end
-function TH.rangeText()
-	local t = TH.current().rangeText
-	if type(t) == "function" then return t() end
-	return t
-end
 
 function TH.extrasScaleKey() return TH.current().extrasScaleKey or "extrasScale" end
 
@@ -241,7 +228,7 @@ end
 
 function TH.fixedSlots() return TH.current().fixedSlots == true end
 
--- Settings a look owns: border, spacing, extrasGapShare, dir, pop, range, rangeHeight, barPlace, extras,
+-- Settings a look owns: border, spacing, extrasGapShare, dir, pop, barPlace, extras,
 -- extrasScale. Dir, pop, extras and extrasScale reach the layout through TB.eff(); spacing and
 -- extrasGapShare are shares of the icon size, read through TH.spacing
 local function ownsNow()
@@ -288,6 +275,14 @@ function TH.faceSize(b, sz, frame)
 	return sz - 2 * ns.StyleArt.inset(frame, b, sz)
 end
 
+-- How far in from the edge of v's picture (w wide) its dress covers it, in whole pixels
+function TH.dressInset(v, w)
+	local share = TH.current().dressInset
+	if not share then return 0 end
+	local px = W.pixel(v)
+	return math.ceil(w * share / px - 0.01) * px
+end
+
 function TH.spacing(size)
 	local o = ownsNow()
 	local share = o and o.spacing
@@ -295,20 +290,42 @@ function TH.spacing(size)
 	return size * share, size * (o.extrasGapShare or share)
 end
 
-function TH.barPlace()
-	if TH.owns("barPlace") or not P.getDB() then return "in" end
-	return TB.cfg().barPlace
+-- "in" or "out" (beside the icon): field is barPlace or rangePlace; "in" where the theme owns it
+function TH.place(field)
+	if TH.owns(field) or not P.getDB() then return "in" end
+	return TB.cfg()[field]
 end
 
+-- Beside a slot, on the side away from the pickers, from its edge outward: the time bar and the out of
+-- range mark in the player's order, each after its own gap, then the badge. From settings only, so
+-- nothing moves when a mark lights. f: a frame at the slot's scale. Returns side, and the time bar's
+-- and the mark's offsets (nil when not beside) and the reach past both.
+local AWAY = { up = "below", down = "above", right = "left", left = "right" }
 local function outGap(size) return math.max(math.floor(size * 3 / W.BASE_ICON_SIZE + 0.5), 2) end
-local function outReach(size)
-	if TH.barPlace() ~= "out" or not ns.Style.value("totembar", "uptime", "bar") then return 0 end
-	return outGap(size) + ns.Style.value("totembar", "uptime", "barHeight")
+function TH.beside(size, f)
+	local parts = {}
+	if TH.place("barPlace") == "out" and ns.Style.value("totembar", "uptime", "bar") then
+		parts.bar = { outGap(size), ns.Style.value("totembar", "uptime", "barHeight") }
+	end
+	local side = AWAY[TB.eff().pop]
+	local gap, thick = TB.range.band(f, side)
+	if gap then parts.mark = { gap, thick } end
+	local order = P.getDB() and TB.cfg().rangeOrder == "before" and { "mark", "bar" } or { "bar", "mark" }
+	local out, d = { side = side }, 0
+	for _, k in ipairs(order) do
+		local p = parts[k]
+		if p then
+			out[k] = d + p[1]
+			d = d + p[1] + p[2]
+		end
+	end
+	out.reach = d
+	return out
 end
 
-function TH.badgeGap(size)
-	local f = TH.current().badgeGap
-	return (f and f(size) or 0) + outReach(size)
+function TH.badgeGap(size, f)
+	local g = TH.current().badgeGap
+	return (g and g(size) or 0) + TH.beside(size, f).reach
 end
 
 -- Drawing: each call draws the look picked now, or takes down what another look drew
@@ -426,8 +443,8 @@ end
 
 local function blizzardDress(v, el, w)
 	local d = dressParts(v)
-	-- Under the warning rings (sublevel 6)
-	local ring = d.ring or v:CreateTexture(nil, "OVERLAY", nil, 5)
+	-- On the slot's art frame, over the out of range mark
+	local ring = d.ring or (v.art or v):CreateTexture(nil, "OVERLAY", nil, 5)
 	d.ring = ring
 	blizzPiece(ring, BZ.ring[el or "spell"])
 	local o = w * 2 / 30
@@ -467,7 +484,7 @@ local function plateDress(v, el, w)
 		f.lines = {}
 		d.plate = f
 	end
-	f:SetFrameLevel(math.max(v:GetFrameLevel() - 1, 0))
+	f:SetFrameLevel(math.max(v:GetFrameLevel() - (TB.LAYER.look - TB.LAYER.plate), 0))
 	local pad = W.roundPx(w * 0.16, W.pixel(v))
 	f:ClearAllPoints()
 	f:SetPoint("TOPLEFT", v, "TOPLEFT", -pad, pad)
@@ -534,7 +551,6 @@ local function tip(t, on)
 	x:Show()
 end
 
-local AWAY = { up = "below", down = "above", right = "left", left = "right" }
 local function outsideBar(t, anchor, size, on)
 	local bar = t.bar
 	if not on then
@@ -547,9 +563,10 @@ local function outsideBar(t, anchor, size, on)
 	end
 	bar.sfOutside = true
 	local _, border = TB.look()
-	local d = ns.StyleArt.inset(anchor, border, size) + outGap(size)
+	local at = TH.beside(size, anchor)
+	local d = ns.StyleArt.inset(anchor, border, size) + at.bar
 	local thick = ns.Style.value("totembar", "uptime", "barHeight")
-	local side = AWAY[TB.eff().pop]
+	local side = at.side
 	bar:ClearAllPoints()
 	if side == "below" or side == "above" then
 		local y = side == "below" and -d or d
@@ -572,7 +589,7 @@ end
 
 function TH.styleTimer(t, anchor, size)
 	if not (t and t.bar) then return end
-	local out = TH.barPlace() == "out"
+	local out = TH.place("barPlace") == "out"
 	outsideBar(t, anchor, size, out)
 	tip(t, not out and TH.current().timeBar == "tip")
 end
@@ -754,48 +771,4 @@ function TH.stylePopout(pop, n, psz, el)
 		pop.bg:SetColorTexture(TRAY[1], TRAY[2], TRAY[3], 0.9)
 		insetRings(pop, p.lines, { { 1, BLACK }, { 1, GOLD } })
 	end
-end
-
--- Out of range: where the look's mark sits, or nil: the strip along the top. A mark over the
--- picture is the strip, as Default sizes it: Blizzard's part covers the mark in range with the
--- buff's icon, which can be another totem's. No whole-picture mark: in combat our texture under
--- Blizzard's part refuses SetTexture and SetAlpha, and a MOD tint under a parent at alpha 0 still
--- tints.
-function TH.markRect(frame, size, inset)
-	local kind = TH.mark()
-	if not kind then return nil end
-	return inset, -inset, size - 2 * inset, W.linePx(frame, TB.cfg().rangeHeight)
-end
-
-local function markParts(m, icon)
-	local p = m.skinParts
-	if p then return p end
-	p = { shade = m:CreateTexture(nil, "ARTWORK", nil, 1) }
-	p.shade:SetAllPoints()
-	if icon then ns.StyleArt.followMask(icon, p.shade) end
-	m.skinParts = p
-	return p
-end
-
-function TH.paintMark(m, w, h, icon)
-	local kind = w and TH.mark()
-	local p = m.skinParts
-	if not kind then
-		if p then
-			p.shade:Hide()
-			m.bg:Show()
-		end
-		return false
-	end
-	p = markParts(m, icon)
-	m.bg:Hide()
-	p.shade:SetColorTexture(RED[1], RED[2], RED[3], RED[4])
-	p.shade:Show()
-	return true
-end
-
-function TH.styleRangeButton(p, s)
-	if not TH.mark() then return false end
-	p.over.bg:SetColorTexture(0, 0, 0, 0)
-	return true
 end
