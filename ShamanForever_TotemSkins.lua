@@ -307,10 +307,11 @@ function TH.beside(size, f)
 	if TH.place("barPlace") == "out" and ns.Style.value("totembar", "uptime", "bar") then
 		parts.bar = { outGap(size), ns.Style.value("totembar", "uptime", "barHeight") }
 	end
-	local gap, thick = TB.range.band(f)
+	local side = AWAY[TB.eff().pop]
+	local gap, thick = TB.range.band(f, side)
 	if gap then parts.mark = { gap, thick } end
 	local order = P.getDB() and TB.cfg().rangeOrder == "before" and { "mark", "bar" } or { "bar", "mark" }
-	local out, d = { side = AWAY[TB.eff().pop] }, 0
+	local out, d = { side = side }, 0
 	for _, k in ipairs(order) do
 		local p = parts[k]
 		if p then

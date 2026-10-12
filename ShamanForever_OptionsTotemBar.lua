@@ -548,8 +548,16 @@ local function build(p)
 	end
 	local range = p:checkbox("Show", nil, tget("range"), tset("range"))
 	p:sub(range, tget("range"), function()
-		tslider("Height", "In pixels.", px, "rangeHeight")
 		p:color("Colour", "Colour and opacity.", tget("rangeOut"), tset("rangeOut"))
+		local shape = p:dropdown("Shape", nil, { { "strip", "Strip" }, { "dot", "Dot" } }, tget("rangeShape"),
+			tset("rangeShape"), nil, 190)
+		p:sub(shape, nil, function()
+			local function is(v) return function() return c().rangeShape == v end end
+			tslider("Bar thickness", "In pixels.", px, "rangeHeight", is("strip"))
+			tslider("Dot size", "In pixels.", px, "rangeDotSize", is("dot"))
+			tslider("X offset", "From its place. It stays inside the icon, or beside it.", px, "rangeDotX", is("dot"))
+			tslider("Y offset", "From its place. It stays inside the icon, or beside it.", px, "rangeDotY", is("dot"))
+		end)
 		local place = p:dropdown("Place", "Beside: on the side away from the pickers.",
 			{ { "in", "In the icon" }, { "out", "Beside the icon" } }, tget("rangePlace"), tset("rangePlace"), nil, 190)
 		p:sub(place, function() return c().rangePlace == "out" end, function()

@@ -93,35 +93,61 @@ local function seen(id)
 	return proven[id] or P.getAccount().rangeSeen[id] == true
 end
 
--- The mark: a strip along the picture's top edge, inside its border's art and a theme's ring; along the
--- bottom while the time bar runs along the top. Its rect from the slot box's top left.
+-- The mark, in the icon: a strip along the picture's top edge, or a dot at its middle, inside its
+-- border's art and a theme's ring; along the bottom while the time bar runs along the top. Its rect from
+-- the slot box's top left.
 local function timeBarOnTop()
 	local S = ns.Style
 	return TB.skin.place("barPlace") ~= "out" and S.value("totembar", "uptime", "bar") == true
 		and S.value("totembar", "uptime", "barEdge") == "top"
 end
+local function clamp(v, lo, hi) return math.max(lo, math.min(v, hi)) end
 
--- Beside the icon: the mark's gap from what's inside it and its thickness (f: a frame at the slot's
--- scale), or nil
-function RG.band(f)
+-- A dot's X or Y offset away from the slot on side
+local AWAY_BY = { below = { "rangeDotY", -1 }, above = { "rangeDotY", 1 }, left = { "rangeDotX", -1 },
+	right = { "rangeDotX", 1 } }
+
+-- Beside the icon on side: the mark's gap from what's inside it (a dot's offset away from the slot adds
+-- to it; one toward it stops at what's inside) and its thickness (f: a frame at the slot's scale), or nil
+function RG.band(f, side)
 	if not P.getDB() then return nil end
 	local c = TB.cfg()
 	if not c.range or TB.skin.place("rangePlace") ~= "out" then return nil end
-	return c.rangeGap, W.linePx(f, c.rangeHeight)
+	if c.rangeShape ~= "dot" then return c.rangeGap, W.linePx(f, c.rangeHeight) end
+	local a = AWAY_BY[side]
+	return math.max(c.rangeGap + (a and c[a[1]] * a[2] or 0), 0), W.linePx(f, c.rangeDotSize)
 end
 
--- Beside the icon: along the edge of the slot's look (as the time bar), at its place in TB.skin.beside
+-- Beside the icon: along the edge of the slot's look (as the time bar), at its place in TB.skin.beside;
+-- a dot at the edge's middle, moved along it by its offset and kept within it
+local function besideRect(v, size, inset, c)
+	local at = TB.skin.beside(size, v)
+	local off, len = at.mark or c.rangeGap, size - 2 * inset
+	local dot = c.rangeShape == "dot"
+	local h = W.linePx(v, dot and c.rangeDotSize or c.rangeHeight)
+	local kind, from, w = "stripOut", inset, len
+	if dot then
+		kind, w = "dotOut", h
+		local along = (at.side == "below" or at.side == "above") and c.rangeDotX or -c.rangeDotY
+		from = clamp((size - h) / 2 + along, inset, size - inset - h)
+	end
+	if at.side == "below" then return from, -(size + off), w, h, kind end
+	if at.side == "above" then return from, off + h, w, h, kind end
+	if at.side == "left" then return -(off + h), -from, h, w, kind end
+	return size + off, -from, h, w, kind
+end
+
 function RG.rect(v, size, inset)
 	local c = TB.cfg()
-	if TB.skin.place("rangePlace") == "out" then
-		local at = TB.skin.beside(size, v)
-		local off, h, len = at.mark or c.rangeGap, W.linePx(v, c.rangeHeight), size - 2 * inset
-		if at.side == "below" then return inset, -(size + off), len, h, "stripOut" end
-		if at.side == "above" then return inset, off + h, len, h, "stripOut" end
-		if at.side == "left" then return -(off + h), -inset, h, len, "stripOut" end
-		return size + off, -inset, h, len, "stripOut"
-	end
+	if TB.skin.place("rangePlace") == "out" then return besideRect(v, size, inset, c) end
 	local d = inset + ns.StyleArt.pictureInset(v) + TB.skin.dressInset(v, size - 2 * inset)
+	if c.rangeShape == "dot" then
+		-- Moved by its offsets and kept wholly inside the picture
+		local dd = W.linePx(v, c.rangeDotSize)
+		local top = timeBarOnTop() and size - d - dd or d
+		return clamp((size - dd) / 2 + c.rangeDotX, d, size - d - dd), -clamp(top - c.rangeDotY, d, size - d - dd),
+			dd, dd, "dot"
+	end
 	local w, h = size - 2 * d, W.linePx(v, c.rangeHeight)
 	return d, timeBarOnTop() and -(size - d - h) or -d, w, h, "strip"
 end
@@ -129,10 +155,11 @@ end
 local previewOn = false
 local events   -- set(on): UNIT_AURA, while the mark is in use (RG.start)
 
--- A mark: a texture for each place, shown by RG.paint; in the icon (bg), in the picture's shape (v: the
--- slot's look or the options header's icon)
+-- A mark: a texture for each shape and place, shown by RG.paint; in the icon (bg, and the dot), in the
+-- picture's shape (v: the slot's look or the options header's icon)
 local function newMark(parent, v, lv)
 	local m = CreateFrame("Frame", nil, parent)
+	m.v = v
 	m:SetFrameLevel(lv)
 	m:SetAlpha(0)
 	m.bg = m:CreateTexture(nil, "ARTWORK")
@@ -143,14 +170,17 @@ end
 RG.newMark = newMark
 
 -- kind (from RG.rect): which texture shows
-local KINDS = { "strip", "stripOut" }
+local KINDS = { "strip", "stripOut", "dot", "dotOut" }
 local function texture(m, kind)
 	if kind == "strip" then return m.bg end
-	if not m[kind] then
-		m[kind] = m:CreateTexture(nil, "ARTWORK")
-		m[kind]:SetAllPoints()
+	local t = m[kind]
+	if not t then
+		t = (kind == "dot" or kind == "dotOut") and ns.Page.disc(m, "ARTWORK") or m:CreateTexture(nil, "ARTWORK")
+		t:SetAllPoints()
+		if kind == "dot" then ns.StyleArt.followMask(m.v, t) end
+		m[kind] = t
 	end
-	return m[kind]
+	return t
 end
 
 -- The player's out of range colour on the mark's texture for kind (default: the last)
