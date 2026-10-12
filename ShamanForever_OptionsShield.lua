@@ -18,7 +18,6 @@ local function buildShield(p, def)
 		{ "water", ns.Spells.name("waterShield"), 132315 },
 		{ "either", "Either", 136051 },
 	}, eopt(p, key, "track", nil, respell))
-	p:text("Only one shield can be up at a time. With one chosen, the other counts as no shield.")
 	-- Lightning, the default, reads a Water Shield that is up as no shield.
 	p:callout(("You know %s: choose Either to count it."):format(ns.Spells.name("waterShield")),
 		function()
