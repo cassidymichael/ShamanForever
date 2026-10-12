@@ -206,7 +206,6 @@ ns.registerPart("reset", {
 				f.resetToken = nil
 				f.resetHost:Hide()
 			end)
-			f:HookScript("OnShow", function() homeWord(f) end)
 			f.resetWord = f.resetHost:CreateFontString(nil, "OVERLAY")
 			ns.Media.setFont(f.resetWord, nil, 16)
 		end,
