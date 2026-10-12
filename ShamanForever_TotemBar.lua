@@ -1724,31 +1724,10 @@ local function paintSlot(s, rec)
 	s.badge:Hide()
 	s.killed:setIcon(icon)
 	s.expired:setIcon(icon)
-	local size = s.button:GetWidth()
-	local strip = s.previewRange
-	if rec.range and c.range and shown then
-		if not strip then
-			strip = CreateFrame("Frame", nil, bar)
-			strip.bg = strip:CreateTexture(nil, "ARTWORK")
-			strip.bg:SetAllPoints()
-			s.previewRange = strip
-		end
-		strip:SetFrameLevel(s.button:GetFrameLevel() + L.mark + 3)
-		strip:ClearAllPoints()
-		local x, y, w, h = TB.skin.markRect(strip, size, s.inset or 0)
-		if x then
-			strip:SetPoint("TOPLEFT", s.button, "TOPLEFT", x, y)
-			strip:SetSize(w, h)
-		else
-			strip:SetPoint("TOPLEFT", s.button, "TOPLEFT", 0, 0)
-			strip:SetSize(size, W.linePx(strip, c.rangeHeight))
-		end
-		if not TB.skin.paintMark(strip, w, h, s.vis) then
-			local k = c.rangeOut
-			strip.bg:SetColorTexture(k[1], k[2], k[3], k[4] or 1)
-		end
-		strip:Show()
-	elseif strip then strip:Hide() end
+	-- The out of range mark where the bar draws it, over a pick that buffs you (or none picked)
+	local id = pickSpell(s.slot)
+	TB.range.standIn(s, rec.range and c.range and shown and (id == nil or TB.range.covers(s.el, id)),
+		s.button:GetWidth())
 	v.icon:SetTexture(icon)
 	if st == "down" or st == "expiring" then
 		s.killed.mark:Hide()
@@ -1784,7 +1763,6 @@ local function showPreview(opts)
 			local s = slots[el]
 			s.killed:stop()
 			s.expired:stop()
-			if s.previewRange then s.previewRange:Hide() end
 			-- A totem that went meanwhile isn't news: no end flash; ns.Totems forgets it quietly
 			if s.dur then
 				local ok, d = ns.try("totem bar: duration", GetTotemDuration, s.slot)

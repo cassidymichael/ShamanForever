@@ -48,11 +48,8 @@ PREVIEW = {
 			ic.badge.icon = ic.badge:CreateTexture(nil, "ARTWORK")
 			ic.badge.icon:SetAllPoints()
 			W.cropIcon(ic.badge.icon)
-			ic.rangeF = CreateFrame("Frame", nil, bar)
-			ic.rangeF:SetFrameLevel(ic:GetFrameLevel() + L.mark - L.look)
-			ic.rangeF.bg = ic.rangeF:CreateTexture(nil, "ARTWORK")
-			ic.rangeF.bg:SetAllPoints()
-			ns.StyleArt.followMask(ic, ic.rangeF.bg)
+			ic.rangeF = ns.TotemBar.range.newMark(bar, ic, ic:GetFrameLevel() + L.mark - L.look)
+			ic.rangeF:SetAlpha(1)
 			-- As the bar's slot look: TB.paintDown and TB.paintEmpty draw both
 			ic.icon = ic.tex
 			ic.bg = ic:CreateTexture(nil, "BACKGROUND")
@@ -165,6 +162,7 @@ PREVIEW = {
 		end
 		local expEl = tContains(els, "fire") and "fire" or els[1]
 		h.endIcon = nil
+		local marked = false
 		for i, ic in ipairs(h.slots) do
 			local el = els[i]
 			ic:SetShown(el ~= nil)
@@ -185,22 +183,17 @@ PREVIEW = {
 				ic.killed:setIcon(pick or TB.TOTEM_ICON[el])
 				if st ~= "killed" or el ~= expEl then ic.killed:stop() end
 				ic.badge:Hide()
-				if st == "range" and c.range then
+				-- Out of range as the bar draws it: on the first slot whose pick buffs you (or has none)
+				local pickID = st == "range" and c.range and not marked and TB.pickSpell(el)
+				if st == "range" and c.range and not marked and (pickID == nil or TB.range.covers(el, pickID)) then
+					marked = true
 					local f = ic.rangeF
+					local x, y, mw, mh = TB.range.rect(ic, size, o)
 					f:ClearAllPoints()
-					local x, y, mw, mh = TB.skin.markRect(f, size, o)
-					if x then
-						f:SetPoint("TOPLEFT", ic.box, "TOPLEFT", x, y)
-						f:SetSize(mw, mh)
-						f:SetShown(i == 1 and TB.skin.paintMark(f, mw, mh, ic))
-					else
-						local k = i == 1 and c.rangeOut or c.rangeIn
-						f:SetPoint("TOPLEFT", ic, "TOPLEFT", 0, 0)
-						f:SetSize(size - 2 * o, W.linePx(ic, c.rangeHeight))
-						TB.skin.paintMark(f)
-						f.bg:SetColorTexture(k[1], k[2], k[3], k[4] or 1)
-						f:Show()
-					end
+					f:SetPoint("TOPLEFT", ic.box, "TOPLEFT", x, y)
+					f:SetSize(mw, mh)
+					TB.range.paint(f, ic)
+					f:Show()
 				end
 				TB.paintLow(ic, st == "mana" and i == 1 and TB.feat("cast") and c.mana.on == true)
 				if st == "offpick" and i == 1 then

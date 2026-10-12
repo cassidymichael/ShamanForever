@@ -81,6 +81,28 @@ end
 local previewOn = false
 local events   -- set(on): UNIT_AURA, while the mark is in use (RG.start)
 
+-- A mark: its texture in the picture's shape (v, the slot's look or the options header's icon)
+local function newMark(parent, v, lv)
+	local m = CreateFrame("Frame", nil, parent)
+	m:SetFrameLevel(lv)
+	m:SetAlpha(0)
+	m.bg = m:CreateTexture(nil, "ARTWORK")
+	m.bg:SetAllPoints()
+	ns.StyleArt.followMask(v, m.bg)
+	return m
+end
+RG.newMark = newMark
+
+-- The player's out of range colour on a mark (v: the picture it's on)
+function RG.paint(m, v)
+	if TB.skin.paintMark(m, true, true, v) then return end
+	local k = TB.cfg().rangeOut
+	m.bg:SetColorTexture(k[1], k[2], k[3], k[4] or 1)
+end
+
+-- Whether id (a totem down or picked) buffs you, so has a mark
+function RG.covers(el, id) return isBuffTotem(el, id) end
+
 -- Per slot, made the first time it's on (out of combat): its gate, and the mark in it
 local function makeGate(s)
 	local el = s.el
@@ -91,19 +113,13 @@ local function makeGate(s)
 		sites = { container = site .. " sensor", style = site .. " layout", filter = site .. " filter" } })
 	local lv = s.button:GetFrameLevel() + TB.LAYER.mark
 	g:setLevel(lv)
-	local m = CreateFrame("Frame", nil, g.area)
-	m:SetFrameLevel(lv)
-	m:SetAlpha(0)
-	m.bg = m:CreateTexture(nil, "ARTWORK")
-	m.bg:SetAllPoints()
-	ns.StyleArt.followMask(s.vis, m.bg)
-	s.outGate, s.rangeHold, s.rangeMark = g, g.hold, m
+	s.outGate, s.rangeHold, s.rangeMark = g, g.hold, newMark(g.area, s.vis, lv)
 end
 
 -- The cell: the mark's rect, and the gate's edge on the left and a unit on the other sides (a thin
 -- mark keeps its rows at a fractional scale)
 local function place(s, size)
-	local c, g, m = TB.cfg(), s.outGate, s.rangeMark
+	local g, m = s.outGate, s.rangeMark
 	local x, y, w, h = RG.rect(s.vis, size, s.inset or 0)
 	local e = W.AURA_GATE_EDGE
 	local cw, ch = w + e + 1, h + 2
@@ -112,10 +128,7 @@ local function place(s, size)
 	m:ClearAllPoints()
 	m:SetPoint("TOPLEFT", g.area, "TOPLEFT", e, -1)
 	m:SetSize(w, h)
-	if not TB.skin.paintMark(m, w, h, s.vis) then
-		local k = c.rangeOut
-		m.bg:SetColorTexture(k[1], k[2], k[3], k[4] or 1)
-	end
+	RG.paint(m, s.vis)
 	g:resize(cw, ch, string.format("%.3f:%.3f", cw, ch))
 end
 
@@ -246,10 +259,32 @@ function RG.onCast(spell)
 	for _, el in ipairs(TB.ELEMENTS) do shut(TB.slots[el]) end
 end
 
--- Preview: the gates shut while it runs
+-- Preview: the gates shut while it runs; a slot's stand-in shows the mark where the gate would
 function RG.preview(on)
 	previewOn = on
-	for _, el in ipairs(TB.ELEMENTS) do RG.refresh(TB.slots[el]) end
+	for _, el in ipairs(TB.ELEMENTS) do
+		local s = TB.slots[el]
+		RG.refresh(s)
+		if not on and s.rangeStandIn then s.rangeStandIn:Hide() end
+	end
+end
+function RG.standIn(s, on, size)
+	local m = s.rangeStandIn
+	if not on then
+		if m then m:Hide() end
+		return
+	end
+	if not m then
+		m = newMark(TB.frame, s.vis, s.button:GetFrameLevel() + TB.LAYER.mark)
+		m:SetAlpha(1)
+		s.rangeStandIn = m
+	end
+	local x, y, w, h = RG.rect(s.vis, size, s.inset or 0)
+	m:ClearAllPoints()
+	m:SetPoint("TOPLEFT", s.button, "TOPLEFT", x, y)
+	m:SetSize(w, h)
+	RG.paint(m, s.vis)
+	m:Show()
 end
 
 -- /sf debug
