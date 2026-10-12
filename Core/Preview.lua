@@ -117,7 +117,7 @@ end
 
 local function startStep(key, r, moment)
 	r.at = GetTime()
-	r.idleAt = moment and idles(key, r.steps[r.i][1]) and r.at + E.idleAfter() or nil
+	r.idleAt = moment and idles(key, r.steps[r.i][1]) and r.at + OA.idleAfter(key) or nil
 	r.nextAt = nextAt(r, paintElement(key, r, moment))
 end
 

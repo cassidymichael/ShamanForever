@@ -271,6 +271,13 @@ function OA.idles(key, st)
 	return pv and pv.idles and pv.idles(st, when) and true or false
 end
 
+-- Idle after's wait for key's idle moment: only an element that idles when ready or cooling down waits
+function OA.idleAfter(key)
+	local def = E.ALL[key] and E.ALL[key].def
+	local mode = def and ns.Kinds.idleMode(def, E.idleWhen(key))
+	return (mode == "offcd" or mode == "oncd") and E.idleAfter() or 0
+end
+
 local function idleSoon(ic, key, st)
 	local token = {}
 	ic.idleToken = token
@@ -278,7 +285,7 @@ local function idleSoon(ic, key, st)
 		if ic.idleToken ~= token or previewState[key] ~= st then return end
 		OA.fadeIcon(ic, key, st, OA.idleAlpha(key), true)
 	end
-	C_Timer.After(E.idleAfter(), rest)
+	C_Timer.After(OA.idleAfter(key), rest)
 end
 
 OA.PREVIEW = {}
