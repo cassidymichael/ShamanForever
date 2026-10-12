@@ -140,11 +140,9 @@ function W.fadeTo(f, alpha, secs)
 	fading[f], rates[f] = alpha, (a - alpha) / secs
 	fader:Show()
 end
--- f joins other's alpha and fade where it is
-function W.fadeLike(f, other)
-	f:SetAlpha(other:GetAlpha())
-	fading[f], rates[f] = fading[other], rates[other]
-	if fading[f] then fader:Show() end
+-- f falls to where other is going over secs
+function W.fadeLike(f, other, secs)
+	W.fadeTo(f, fading[other] or other:GetAlpha(), secs)
 end
 
 -- Screen-pixel lines

@@ -220,7 +220,7 @@ _G["BINDING_HEADER_" .. ns.NAME:upper() .. "_GENERAL"] = "General"
 -- (a proc's button, a warning), or a holder (f.keepHolder) of a part the player may keep (idleKeep).
 -- A kept part outside the effects layer puts its own frame in f.keepOut[field]; E.fade treats it as a holder.
 -- Pops hang from the pop layer: f.holdAwake(secs) keeps it at the awake alpha while one plays, then it
--- rejoins the idle layer's fade.
+-- falls to the idle layer's alpha over Idle fade.
 -- f.stack() restates frame levels (W.stackIcon); layoutGroup calls it after regrouping.
 function E.newIcon(key, opts)
 	local f = W.makeIcon(root, DEFAULTS.iconSize, key)
@@ -244,7 +244,7 @@ function E.newIcon(key, opts)
 			C_Timer.After(secs, function()
 				if f.awakeUntil ~= ends then return end
 				f.awakeUntil = nil
-				W.fadeLike(f.popLayer, f.idleLayer)
+				W.fadeLike(f.popLayer, f.idleLayer, E.idleFade())
 			end)
 		end
 		f.keep, f.keepOut = {}, {}
