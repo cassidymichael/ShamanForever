@@ -903,7 +903,10 @@ end
 ns.registerPart("buffBar", {
 	kind = "cooldown",
 	defaults = { buffBar = false, idleKeep = { buffBar = false } },
-	idle = { keep = function(def) return { "buffBar", Spells.name(def.buffBar.buffKey), "Its bar and glow." } end },
+	idle = { keep = function(def)
+		return { "buffBar", Spells.name(def.buffBar.buffKey), "Its bar and glow, while either is on.",
+			function() return not B.buffBarLearned(def) end }
+	end },
 	page = { own = function(def)
 		local timeLeft = KD.words("cooldown", def, "uptime") or "Time left"
 		return { "toggle", name = "buffBar", title = Spells.name(def.buffBar.buffKey), label = "Time left bar",

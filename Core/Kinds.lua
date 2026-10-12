@@ -126,9 +126,9 @@ function KD.get(kind) return KINDS[kind] end
 --   idle              words for the Idle block: choices ({ value, label, text, tip, counts };
 --                     counts: the kind's own choice it counts as in the engine), held (what
 --                     keeps it shown, for its kind's own choices), also, text, extra, keep ({ field,
---                     label, tip }: a part the player may keep in full while the element is idle; field
---                     is its idleKeep setting, declared in the part's defaults, and its looks hang
---                     from f.keepHolder(field))
+--                     label, tip, unlearned }: a part the player may keep in full while the element is
+--                     idle; field is its idleKeep setting, declared in the part's defaults, and its looks
+--                     hang from f.keepHolder(field); unlearned() marks the row Not learned while true)
 --   page              by slot: a title (timers), the slot's block options, or for own a block
 --                     ("reagent", { "toggle", ... }) or a list of them
 --   preview           states ({ id, label, order }), uptime, keeps, cooldown, typical, warning, labels
@@ -195,7 +195,7 @@ local function firstOf(list, get)
 	if list[1] then return get(list[1]) end
 end
 
--- The parts the player may keep in full over an idle element, one { field, label, tip } each
+-- The parts the player may keep in full over an idle element, one { field, label, tip, unlearned } each
 local function keepWords(def, list)
 	local out
 	for _, p in ipairs(list) do

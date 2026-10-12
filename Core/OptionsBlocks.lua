@@ -896,6 +896,7 @@ local function idleBlock(p, def)
 		for _, k in ipairs(keeps) do
 			local keepGet, keepSet = eopt(p, key, "idleKeep", k[1])
 			p:checkbox(k[2], k[3], keepGet, keepSet)
+			if k[4] then p:text("Not learned yet.", showWhen(k[4])) end
 		end
 	end
 	if whenRow then p:sub(whenRow, function() return when() ~= "never" end, rows) else rows() end
