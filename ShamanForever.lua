@@ -32,8 +32,8 @@ local SHOW_WHEN = {
 
 local DEFAULTS = {
 	iconSize = W.BASE_ICON_SIZE,
-	idleAfter = 1,   -- seconds a ready element waits before it rests
-	idleFade = 0.3,   -- seconds its fade down takes
+	idleAfter = 0.6,   -- seconds a ready element waits before it rests
+	idleFade = 0.2,   -- seconds its fade down takes
 	border = CopyTable(ns.Style.PARTS.border.defaults),
 	glowStyle = CopyTable(ns.Style.PARTS.glow.defaults),
 	popStyle = CopyTable(ns.Style.PARTS.pop.defaults),
