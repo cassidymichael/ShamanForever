@@ -155,9 +155,8 @@ ns.registerPart("lowMana", {
 --   ticks(def)                   whether tick is wanted now
 --   tick(def, cantAct)           ten times a second while any part ticks: redraws a look with no
 --                                event to follow (cantAct: the player can't act)
---   cast(def)                    our own successful cast of the row's spell (its ID plain)
 --   debug(def)                   its words in /sf debug
--- refresh, make, tick, cast and debug run for every part, in parts order; gate and readyGate come from
+-- refresh, make, tick and debug run for every part, in parts order; gate and readyGate come from
 -- the first part that gives one.
 -- The icon (def.frame) has upTimer in activeHolder when its page has a Time left block, warn when
 -- it has a Warning block, and readyGlow in readyGate with the readyGlow part or a readyGate hook.
@@ -631,13 +630,7 @@ function CD.onCast(spellID)
 	local key = Spells.keyOf(spellID)
 	if not key then return end
 	for _, def in ipairs(COOLDOWNS) do
-		if E.inUse(def.key) and key == def.spellKey then
-			CD.noteCast(def.frame, def.spellID)
-			for _, p in ipairs(KD.partsOf("cooldown", def)) do
-				local c = p.runtime and p.runtime.cast
-				if c then ns.try("cooldown cast", c, def) end
-			end
-		end
+		if E.inUse(def.key) and key == def.spellKey then CD.noteCast(def.frame, def.spellID) end
 	end
 end
 
