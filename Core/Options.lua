@@ -141,7 +141,8 @@ local function buildGlobal(p)
 	K.rangeSlider(p, P.RANGES.idleAfter, "Idle after", nil, Page.secs, gopt(p, "idleAfter", OP.refresh))
 	p:text("How long an element that idles when ready or cooling down waits first.")
 	K.rangeSlider(p, P.RANGES.idleFade, "Idle fade", nil, Page.secs, gopt(p, "idleFade", OP.refresh))
-	p:text("How long every element takes to fade when it goes idle.")
+	p:text("How long an element takes to fade when it goes idle. Some go idle at once as a buff or debuff "
+		.. "comes or goes.")
 	K.soundsBlock(p)
 	local hasReporter = ns.IssueReporter.has
 	p:header("Beta", hasReporter)
