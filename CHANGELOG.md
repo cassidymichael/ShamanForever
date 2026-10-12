@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.16.0 (2026-10-12)
+
+- Idle now fades the whole element: its glows, marks and bars too. "Keep these parts at full
+  opacity" options on each element keep any of them bright. Elements wake at once, Ready pops
+  always play in full, and a new Global setting, Idle fade, sets how quickly they fade.
+- Stormstrike: a Reset pop (experimental) the moment a dodge or parry resets its cooldown, with
+  an optional short text and sound. Improved Stormstrike's mana regen buff can show as a bar at
+  the top of the icon.
+- The totem bar's out of range mark is redrawn: it sits inside borders and art frames, and can
+  be a strip or a dot, in or beside the icon, with an optional In range colour.
+- Many other minor fixes and improvements.
+
 ## 0.15.0 (2026-10-11)
 
 - Elements now have a full on/off switch in its page's header and in the Elements list page.
