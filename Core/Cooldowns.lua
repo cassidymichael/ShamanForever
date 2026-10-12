@@ -99,13 +99,24 @@ local function resetWords(key)
 	words = type(words) == "string" and words:gsub("^%s+", ""):gsub("%s+$", "") or ""
 	return words ~= "" and ns.utf8Cut(words, RESET_WORDS_MAX) or RESET_WORDS
 end
+-- The words' host hangs from the icon's parent, like the pop's bursts: the icon's motion scales its
+-- children, and the words stay where their Position says
+local WORD_LEVEL = 13
+local function homeWord(f)
+	local host = f.resetHost
+	local parent = f:GetParent()
+	if parent ~= host:GetParent() and not InCombatLockdown() then host:SetParent(parent) end
+	host:SetFrameLevel(f.popLayer:GetFrameLevel() + WORD_LEVEL)
+	return f.effects and f.effects:GetAlpha() or 1
+end
 -- The words on the icon for secs, then fading out; a new show restarts them
 local function showWord(f, key, secs)
 	local host, token = f.resetHost, {}
 	f.resetToken = token
 	f.resetWord:SetText(resetWords(key))
 	W.styleWord(f.resetWord, f, E.settingsOf(key))
-	W.fadeTo(host, 1)
+	local alpha = homeWord(f)
+	W.fadeTo(host, alpha)
 	host:Show()
 	C_Timer.After(secs, function()
 		if f.resetToken ~= token then return end
@@ -186,9 +197,16 @@ ns.registerPart("reset", {
 	},
 	runtime = {
 		make = function(def, f)
-			f.resetHost = CreateFrame("Frame", nil, f.popLayer)
+			f.resetHost = CreateFrame("Frame", nil, f:GetParent())
 			f.resetHost:SetAllPoints(f)
+			f.resetHost:EnableMouse(false)
+			if f.effects then ns.ignoreParentAlpha(f.resetHost, true) end
 			f.resetHost:Hide()
+			f:HookScript("OnHide", function()
+				f.resetToken = nil
+				f.resetHost:Hide()
+			end)
+			f:HookScript("OnShow", function() homeWord(f) end)
 			f.resetWord = f.resetHost:CreateFontString(nil, "OVERLAY")
 			ns.Media.setFont(f.resetWord, nil, 16)
 		end,
