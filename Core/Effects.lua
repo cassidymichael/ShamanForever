@@ -332,7 +332,8 @@ function Rig:home()
 	-- The bursts hang from the group's frame and ignore its alpha: they play at the group's opacity and
 	-- the element's idle alpha, as the flash on the icon does
 	if f.idleLayer then
-		local a = f.effects:GetAlpha() * f.idleLayer:GetAlpha()
+		-- A waking element is still near its idle alpha: only a resting one dims its bursts
+		local a = f.effects:GetAlpha() * math.max(f.idleLayer:GetAlpha(), f.idleTarget or 1)
 		front:SetAlpha(a)
 		back:SetAlpha(a)
 	end
