@@ -913,7 +913,8 @@ ns.registerPart("buffBar", {
 	preview = {
 		states = function(def) return { { "buffBar", Spells.name(def.buffBar.buffKey), 63 } } end,
 		keeps = { buffBar = "buffBar" },
-		idles = function(st, _, when) if st == "buffBar" then return when ~= "never" end end,
+		-- Drawn cooling down: it idles where the cooldown does
+		idles = function(st, def, when) if st == "buffBar" then return KD.idleMode(def, when) == "oncd" end end,
 		-- Drawn on the preview icon by hand: the cooldown under way, a frozen bar while its switch is on
 		render = function(ic, st, def, kit)
 			local bar = ic.buffBar
