@@ -576,12 +576,6 @@ local function build(p)
 					and ns.Style.value("totembar", "uptime", "bar") == true end, 240)
 		end)
 		p:text("It can take a few seconds to show you've left range as the buff lingers.")
-		p:text(function()
-			local names = TB.range.weaponNames()
-			if #names == 0 then return "" end
-			return string.format("%s show nothing while the matching imbue is on your main hand, in %s or "
-				.. "with no weapon.", table.concat(names, " and "), ns.Spells.name("ghostWolf"))
-		end)
 	end)
 
 	p.gate = full

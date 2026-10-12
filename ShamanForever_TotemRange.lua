@@ -205,18 +205,6 @@ function RG.untested()
 	return out
 end
 
--- The totems an imbue turns off, by the client's names
-function RG.weaponNames()
-	local ids, out = {}, {}
-	for id in pairs(IMBUE_CANCELS) do table.insert(ids, id) end
-	table.sort(ids)
-	for _, id in ipairs(ids) do
-		local n = ns.Spells.nameOf(id)
-		if n then table.insert(out, n) end
-	end
-	return out
-end
-
 -- Per slot, made at rest: out of range opens while none of the element's buffs is on you; in range
 -- (inverted) while your own is, as another shaman's would show it out of your range
 local function makeGate(s, inRange)
