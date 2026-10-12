@@ -831,13 +831,15 @@ end
 -- Cooldown rows with buffBar = { buffKey, talentKey, school }: a bar on the icon while that buff of
 -- yours is up, drawn by Blizzard's aura button (a proc can't be timed from a cast). It takes Time
 -- left's style, always at the icon's top edge (the debuff's bar sits at the bottom); never a swipe.
+-- Its switch, buffBar, starts off.
 -- B.buffBarLearned(def) says whether its talent is learned.
 local BUFF_BARS = {}
 for _, def in ipairs(ns.CLASS.cooldowns or {}) do
 	if def.buffBar then table.insert(BUFF_BARS, { def = def, spec = def.buffBar }) end
 end
 local barsPreviewing = false
-local function buffBarOn(x) return x.learned and E.inUse(x.def.key) end
+local function buffBarShown(def) return setting(def.key, "buffBar") == true end
+local function buffBarOn(x) return x.learned and E.inUse(x.def.key) and buffBarShown(x.def) end
 -- Where it sits on anchor, in Time left's style: the top edge, inside the picture of icon (the
 -- element's icon, the same box: Blizzard's button has no border of its own)
 local function placeBuffBar(bar, anchor, key, school, icon)
@@ -896,7 +898,7 @@ function B.buffBarLearned(def)
 end
 ns.registerPart("buffBar", {
 	kind = "cooldown",
-	defaults = { idleKeep = { buffBar = false } },
+	defaults = { buffBar = false, idleKeep = { buffBar = false } },
 	idle = { keep = function(def)
 		return { "buffBar", Spells.name(def.buffBar.buffKey), "Its bar and glow, while either is on.",
 			function() return not B.buffBarLearned(def) end }
@@ -913,7 +915,7 @@ ns.registerPart("buffBar", {
 		-- Drawn on the preview icon by hand: a frozen bar, no swipe
 		render = function(ic, st, def)
 			local bar = ic.buffBar
-			if st ~= "buffBar" then
+			if st ~= "buffBar" or not buffBarShown(def) then
 				if bar then bar:Hide() end
 				return
 			end
@@ -931,6 +933,7 @@ ns.registerPart("buffBar", {
 		debug = function(def)
 			local x = buffBarOf(def)
 			local name = Spells.name(def.buffBar.buffKey)
+			if not buffBarShown(def) then return name .. " bar off" end
 			if not x.learned then return name .. " bar: talent not learned" end
 			return name .. " bar: " .. x.slot:describe()
 		end,

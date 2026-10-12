@@ -1382,10 +1382,10 @@ K.registerSlot("cast", function(p, def) K.castBlocks(p, def.key) end)
 K.registerSlot("ready", function(p, def, o) K.readyBlock(p, def.key, o) end)
 K.registerSlot("reset", function(p, def) K.resetBlock(p, def) end)
 K.registerSlot("active", function(p, def, o) K.activeBlock(p, def.key, o) end)
--- buffBar: a cooldown's bar for a buff of yours (def.buffBar); no settings of its own
-K.registerSlot("buffBar", function(p, _, o)
+-- buffBar: a cooldown's bar for a buff of yours (def.buffBar), its switch the element's buffBar
+K.registerSlot("buffBar", function(p, def, o)
 	p:header(o.title)
-	p:text(o.text)
+	p:checkbox("Time left bar", o.text, eopt(p, def.key, "buffBar"))
 	p:text("Not learned yet.", showWhen(o.unlearned))
 end)
 K.registerSlot("expire", function(p, def, o) K.expiringBlock(p, def.key, o) end)
