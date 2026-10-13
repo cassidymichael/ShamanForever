@@ -90,7 +90,7 @@ end
 function SN.test(value) emit(value) end
 function SN.playable(value) return resolve(value) ~= nil end
 
--- Aura sounds: the engine plays them, so they work in combat. A settings change waits for combat's end.
+-- Aura sounds: the engine plays them, so they work in combat. Changes wait for combat's end, but off and on.
 local REMOVED = 2   -- Enum.UnitAuraSoundTrigger.Removed
 local auraSounds = {}   -- owner -> { value, ids, trigger, sig, handles }
 

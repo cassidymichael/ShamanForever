@@ -274,7 +274,7 @@ end
 local function syncNudger()
 	local on = (selectedGroup ~= nil or selectedMovable ~= nil) and not acct().locked and not InCombatLockdown()
 	if on and not nudger.keys then
-		-- Set on first use, out of combat, rather than at load
+		-- Out of combat only: keyboard calls may be refused in a fight
 		nudger:EnableKeyboard(true)
 		nudger:SetPropagateKeyboardInput(true)
 		nudger.keys = true
@@ -289,7 +289,7 @@ function PO.select(id)
 	G.layoutElements()
 end
 
--- A frame that moves on its own (a bar), by the key it registered under. m: frame, nudge(dx, dy),
+-- A frame that moves on its own (a bar; bar: its key in ns.Bars). m: frame, nudge(dx, dy),
 -- lock() (combat started while unlocked)
 function PO.addMovable(m, bar)
 	m.bar = bar

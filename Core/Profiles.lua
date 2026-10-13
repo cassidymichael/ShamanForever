@@ -116,7 +116,7 @@ local RENAMED = {
 }
 
 -- Retired settings, dropped or converted as a profile loads or is imported (account and folds: as the account
--- loads). One settings upgrade with RENAMED, retireGroups, retireTotemBar, retireStyles, retireOwnLooks,
+-- loads). Part of one settings upgrade with RENAMED, retireGroups, retireTotemBar, retireStyles, retireOwnLooks,
 -- retireSounds, the values and fields loops in P.migrate, and keepOldDefaults with the account's defaultsVersion.
 local RETIRED = {
 	-- Profile keys from before styles
