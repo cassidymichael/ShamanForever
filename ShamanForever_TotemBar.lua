@@ -371,7 +371,7 @@ local CATCH_CLICK = [[
 	owner:RunAttribute("sf-close", self:GetAttribute("sf-pick"))
 	return false
 ]]
--- Alt+click opens the picker: slots act on the press, so the press is skipped and it opens on the release
+-- Alt+click opens the picker on the release; both halves of the click skip the slot's action
 local SLOT_CLICK = [[
 	if button == "LeftButton" and IsAltKeyDown() and self:GetAttribute("sf-altpick") then
 		if not down then owner:RunAttribute("sf-open", self:GetAttribute("sf-pick")) end
@@ -500,7 +500,7 @@ for index, el in ipairs(ELEMENTS) do
 	local s = { el = el, slot = slot, index = index }
 	slots[el], bySlot[slot] = s, s
 
-	-- The click area: right-click dismisses, left-click casts the pick (on the press), Alt+click opens the picker
+	-- The click area: right-click dismisses, left-click casts the pick, Alt+click opens the picker
 	local b = CreateFrame("Button", "ShamanForeverTotem" .. NAME[el], bar, "SecureActionButtonTemplate")
 	b:RegisterForClicks("AnyUp", "AnyDown")
 	b:SetAttribute("pressAndHoldAction", true)
@@ -999,8 +999,8 @@ end)
 
 -- Blizzard's totem frames
 -- The totems under the player frame: made invisible and click-through rather than hidden, since
--- hiding it would re-lay out PlayerFrame and PetFrame from addon code. Blizzard's layout sets its
--- alpha back to 1 when it shows its frames, so a hidden TotemFrame hides again whenever alpha is set.
+-- hiding it would re-lay out PlayerFrame and PetFrame from addon code. Hidden by alpha, re-applied
+-- whenever its alpha is set.
 local function totemFrameOurs()
 	if not P.getDB() or not TotemFrame then return false end
 	local roots = { PlayerFrame or false, _G.PlayerBottomManagedFrameContainer or false }
