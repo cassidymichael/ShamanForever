@@ -303,8 +303,8 @@ look = W.makeClipLook(shield, {
 lookEdge = FR.edge(look.art, shield, "shield", { overlay = false })
 -- The one-charge copy: levels above the shield's button and its parts
 local IDLE_LEVEL = 8
--- Its cost: the shown shield's, over Blizzard's button while the shield is up and faded with it by Idle.
--- The cover's sensor sits over the copy (at text + 5 + IDLE_LEVEL, its button's parts up to 4 more).
+-- No mana's cover, for the shown shield's spell: over Blizzard's button while the shield is up, faded by Idle.
+-- Its sensor sits over the copy (the copy's container at text + 5 + IDLE_LEVEL, its parts up to 4 more).
 local cover
 CS.watch("shield", { frame = shield, power = true,
 	cover = { parent = gate, sensorParent = shield, ids = shieldIDMap, level = 5 + IDLE_LEVEL + 5,
@@ -442,10 +442,10 @@ native = W.makeAuraSlot(shield, {
 	end,
 })
 
--- "2 or more charges": the one-charge copy
--- A second aura slot whose bar and clip make the engine draw the copy at exactly one charge, in
--- combat, with nothing read. Frames under Blizzard's button take no scripts and may read back
--- secret: plain frames, placed from our own values. Until the copy is ready the gate stays full.
+-- "2 or more charges": the one-charge copy, hung from `full` (shown only for this Idle choice), not the gate
+-- A second aura slot whose bar and clip make the engine draw it at exactly one charge, in combat, with
+-- nothing read. Frames under Blizzard's button take no scripts and may read back secret: plain frames,
+-- placed from our own values. Until the copy is ready the gate stays full.
 local WHITE = ns.WHITE
 local IMMEDIATE = ns.Timer.AURA_BAR.interpolation
 
