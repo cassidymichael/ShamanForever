@@ -1,8 +1,7 @@
 -- Totem bar themes (a "look" in the code, `skin` in its settings), and the Totem band group art frame
 -- Each look is a data entry; the bar and the options' preview call the functions below, which leave
 -- everything as it was for Default and take down what another look drew.
--- A look can own some of the bar's settings (`owns`): the options hide them, the player's own value
--- stays saved.
+-- A look can own some of the bar's settings (`owns`): the options hide them, the player's value stays saved.
 -- Nothing here reads a totem or an aura.
 
 local ADDON, ns = ...
@@ -431,7 +430,6 @@ function TH.layoutBar(host, boxes, size, row, sealed)
 	plinth(host, boxes, size, look.behind == "plinth" and row and #boxes == 4, sealed)
 end
 
--- el: nil for Call and Recall; w: v's width, passed as it can read secret under a secure button
 local function dressParts(v)
 	local d = v.skinDress
 	if not d then
@@ -517,6 +515,7 @@ local function bossDress(v, w)
 	t:Show()
 end
 
+-- el: nil for Call and Recall; w: v's width, passed as it can read secret under a secure button
 function TH.dressSlot(v, el, w)
 	local kind = TH.current().dress
 	local d = v.skinDress
