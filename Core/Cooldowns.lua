@@ -364,12 +364,12 @@ end
 -- TURN_AFTER_ARM: a GCD read before then is the arming cast's own GCD
 local READY_GRACE, ARM_AFTER_CAST, TURN_AFTER_ARM = 0.5, 1.5, 1.5
 local function arm(r) r.armed, r.by, r.castAt, r.armedAt = true, nil, nil, GetTime() end
--- Ready begins before the tracker's end, which then plays nothing
+-- Ready begins before the tracker's end, which then plays nothing; one hook's error stops no other
 local function readyEarly(r, reset)
 	r.armed, r.by, r.castAt = nil, nil, nil
 	r.at = GetTime()
 	if reset then r.reset = r.at end
-	for _, fn in ipairs(r.fns) do fn() end
+	for _, fn in ipairs(r.fns) do ns.try("ready", fn) end
 end
 local function noteReady(f, st, inEvent)
 	local r = f.ready
