@@ -1,9 +1,7 @@
 -- Shields (Lightning or Water)
--- Blizzard's aura button shows the shield; the No shield look is a clip look the engine draws only
--- while no tracked shield is up, in combat too, with nothing read. One aura slot matches every
--- tracked shield (they exclude each other).
--- Until the button can be made (a login in combat or a PvP match) the plain icon shows: a miss,
--- never a false warning.
+-- Blizzard's aura button shows the shield; the No shield look is a clip look the engine draws while
+-- no tracked shield is up, in combat too, with nothing read. Until the button can be made (a /reload
+-- in combat, a PvP match) the plain icon shows: a miss, never a false warning.
 
 local _, ns = ...
 local P = ns.Profiles
@@ -305,9 +303,8 @@ look = W.makeClipLook(shield, {
 lookEdge = FR.edge(look.art, shield, "shield", { overlay = false })
 -- The one-charge copy: levels above the shield's button and its parts
 local IDLE_LEVEL = 8
--- Its cost over Blizzard's button while the shield is up, faded with it by Idle: the shield it shows.
--- Its sensor, once a state is on, refilters with the others while attached; it sits over the copy
--- (its container at text + 5 + IDLE_LEVEL, its button's parts up to 4 more).
+-- Its cost: the shown shield's, over Blizzard's button while the shield is up and faded with it by Idle.
+-- The cover's sensor sits over the copy (at text + 5 + IDLE_LEVEL, its button's parts up to 4 more).
 local cover
 CS.watch("shield", { frame = shield, power = true,
 	cover = { parent = gate, sensorParent = shield, ids = shieldIDMap, level = 5 + IDLE_LEVEL + 5,
@@ -447,11 +444,8 @@ native = W.makeAuraSlot(shield, {
 
 -- "2 or more charges": the one-charge copy
 -- A second aura slot whose bar and clip make the engine draw the copy at exactly one charge, in
--- combat, with nothing read. It hangs from `full`, in the group's alpha chain.
--- Frames under Blizzard's button take no scripts and may read back secret: all plain frames, placed
--- from our own values.
--- It counts (copyReady) only once made, sized and matching every tracked shield; until then the gate
--- stays full.
+-- combat, with nothing read. Frames under Blizzard's button take no scripts and may read back
+-- secret: plain frames, placed from our own values. Until the copy is ready the gate stays full.
 local WHITE = ns.WHITE
 local IMMEDIATE = ns.Timer.AURA_BAR.interpolation
 
@@ -678,8 +672,8 @@ function SH.debug()
 	say("tracked spell IDs: %s", table.concat(t, ","))
 end
 
--- Preview (ns.registerKind): Blizzard's button can't be shown or hidden by addon code, so a stand-in
--- draws over it (hold)
+-- Preview (ns.registerKind): Blizzard's container decides when its button shows, so a stand-in draws
+-- over it (hold)
 shield.holdsAuraButton = true
 local PREVIEW = {
 	uptime = true, barInset = timeBarInset,
