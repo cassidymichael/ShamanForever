@@ -14,14 +14,14 @@ ns.Cooldowns = CD
 local setting = E.setting
 
 -- Elements: the class's rows (ns.CLASS.cooldowns). A row's fields: key, spellKey, icon, school,
--- blurb, experimental; its parts' flags (this file's parts: readyGlow, lowMana, noReadyPop,
--- reset; others' below, auraState in _Buffs); expireLooks (which looks Expiring offers; false:
--- none), race (race IDs; others see "Not your race"), cd and duration (preview only),
--- defaults (over the parts'), choices, styles and timerCant (see E.register).
+-- blurb, experimental; its parts' flags (this file's: readyGlow, lowMana, noReadyPop, reset; auraState
+-- and buffBar in _Buffs); expireLooks (which looks Expiring offers; false: none), race (race IDs; others
+-- see "Not your race"), cd and duration (preview only), defaults (over the parts'), ranges, choices,
+-- styles and timerCant (see E.register).
 local COOLDOWNS = ns.CLASS.cooldowns or {}
 
 -- The kind and its parts (ns.registerPart); a row's flags name its parts. Other files' parts join
--- it: the reagent's (_Reagents), Expiring's (_Timers), a class's own.
+-- it: the reagent's (_Reagents), the cast states' (_CastStates), Expiring's (_Timers), a class's own.
 local IDLE_NEVER = { "never", "Never", "It always shows in full" }
 local IDLE_OFFCD = { "offcd", "Ready", "Idle while it's ready%s" }
 local IDLE_ONCD = { "oncd", "Cooling down", "Idle while it's cooling down%s",
@@ -86,10 +86,9 @@ ns.registerPart("ready", {
 local GLOW_ONLY = "Only while its glow is on."
 ns.registerPart("readyGlow", { defaults = { ready = { glow = false }, idleKeep = { ready = false } }, glow = true,
 	idle = { keep = { "ready", "Ready glow", GLOW_ONLY } }, preview = { keeps = { ready = "ready" } } })
--- reset = { talent }: a Reset event (the cooldown ends early, by that talent), and its ready then.
--- Its pop and sound take the place of Ready's when it plays; the pop has a style of its own, which an
--- element ships different from its Pop style (resetpop); its text is the player's words by the icon for a
--- set time (the word's look: W.WORD's settings); experimental
+-- reset = { talent }: a Reset event (that talent ends the cooldown early), and its ready then. Its pop
+-- and sound take Ready's place; its pop has its own shipped style (resetpop); its text is the player's
+-- words by the icon for a set time, in W.WORD's look
 local RESET_POP = { colorBy = "event", flash = "edge", burst = "both", motion = "bounce", size = 1.8, speed = 1,
 	reach = 1.3 }
 local RESET_WORDS, RESET_WORDS_MAX, WORD_FADE = "Reset!", 24, 0.2
@@ -641,7 +640,6 @@ local hasTimeLeftCurve = ns.CURVE_LIVE
 -- IsSpellUsable: mana would remove it.
 local function readyAlpha(spellID, cantAct)
 	if cantAct then return 0 end
-	-- A failed read is noted once per place (ns.try)
 	local ok, dur = ns.try("ready glow cooldown", C_Spell.GetSpellCooldownDuration, spellID, true)
 	if not ok then return 0 end
 	if not dur then return 1 end

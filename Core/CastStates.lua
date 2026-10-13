@@ -220,7 +220,7 @@ local function refresh(which)
 	end
 end
 
--- Its spell or a bar's own switch changed (a bar syncs here): owner's watches only (an element's key, a follow's)
+-- Its spell or a bar's own switch changed: owner's watches only (an element's key, a follow's owner)
 local syncTicker
 function CS.reread(owner)
 	syncTicker()
