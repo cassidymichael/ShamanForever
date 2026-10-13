@@ -79,8 +79,6 @@ function KD.slots(kind) return listOf(kind, "slots") end
 -- are drawn after warn, so a kind whose own blocks have one lists warn), prepare(def) (before its
 -- parts are kept; it may read part words, but not from a part whose has() reads what prepare
 -- sets), page(p, def) (else the parts page), preview(def, key) (else one made from its parts).
--- parts and slots add to the lists; the rest replace, so a module and its options file can each
--- give their half.
 -- A preview, whether made by hand or from parts:
 --   states             { { id, label }, ... }; the first is shown first
 --   typical, warning   the state /sf preview shows in Preview and in Warnings (else the first)
