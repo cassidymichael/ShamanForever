@@ -132,7 +132,7 @@ function ns.cache(limit, make)
 	end
 end
 
--- Work that waits for combat to end (protected frames, restyles of Blizzard's aura buttons):
+-- Work that waits for combat to end (protected frames, state drivers, restyles of Blizzard's aura buttons):
 -- `if ns.deferInCombat(key, fn) then return end` queues it once per key; out of combat it runs now.
 -- Aura container work uses ns.deferWhileAurasSecret, which also waits while auras are secret out of
 -- combat (a match, an encounter); the queue runs when combat or an addon restriction ends.
@@ -249,9 +249,10 @@ function ns.lastSeconds(secs)
 end
 
 -- After combat: a combat-only group or bar can stay a few seconds once combat ends, then fade. Its
--- visibility stays with its state driver (a protected bar refuses our show and hide in combat): when combat
--- starts the driver becomes a plain "show"; out of combat it fades, then its own driver returns. The
--- fade is an Alpha animation with no end value: the frame's alpha never changes.
+-- visibility stays with its state driver (a driven frame is never shown or hidden by hand; a protected
+-- bar refuses it in combat): when combat starts the driver becomes a plain "show"; out of combat it
+-- fades, then its own driver returns. The fade is an Alpha animation with no end value: the frame's
+-- alpha never changes.
 local AfterCombat = {}
 ns.AfterCombat = AfterCombat
 local FADE_SECS = 0.4
