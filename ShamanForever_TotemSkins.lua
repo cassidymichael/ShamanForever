@@ -515,7 +515,7 @@ local function bossDress(v, w)
 	t:Show()
 end
 
--- el: nil for Call and Recall; w: v's width, passed as it can read secret under a secure button
+-- el: nil for Call and Recall; w: v's width, passed as it may read secret under a secure button
 function TH.dressSlot(v, el, w)
 	local kind = TH.current().dress
 	local d = v.skinDress
