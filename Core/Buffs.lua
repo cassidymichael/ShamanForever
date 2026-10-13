@@ -20,7 +20,7 @@ local ROWS = ns.CLASS.buffs or {}
 local BUFFS = {}
 
 -- The kind and its parts (ns.registerPart); a row's flags name its parts. Other files' rows and
--- parts join it: the reagent's (_Reagents), a class's own.
+-- parts join it: the reagent's (_Reagents), the cast states' (_CastStates), a class's own.
 local function procName(def) return def.buffKey and Spells.name(def.buffKey) end
 ns.registerPart("buff", {
 	idle = { text = function(def)
@@ -172,7 +172,7 @@ ns.registerPart("charges", {
 			overlay:SetAllPoints()
 			overlay:SetFrameLevel(slot.cd:GetFrameLevel() + 2)
 			Count.text(slot, button, overlay, function(fs) placeCharges(def, fs, button) end, site)
-			-- min 0: one charge is a third, not empty
+			-- min 0: one charge fills one segment, not none
 			local bar = Count.bar(slot, overlay, button)
 			ns.try(site .. " bar", button.SetApplicationBar, button, bar,
 				{ minApplications = 0, maxApplications = def.charges })
@@ -183,9 +183,8 @@ ns.registerPart("charges", {
 })
 
 -- Expiring drawn by the engine on an aura button, set out of combat: an invisible driver bar's fill end
--- splits the time bar's place at the threshold, the time bar held in a clip before it and a bar in the
--- Expiring colour in a clip after it, so each spot is drawn once; and a red countdown. x holds its frames
--- and lengthOff; def its settings
+-- splits the time bar at the threshold, the time bar clipped before it and an Expiring-coloured twin after
+-- it; and a red countdown. x holds its frames and lengthOff; def its settings
 local EXPIRE_FAST = 240   -- the driver's fill end crosses the time bar in a 240th of the aura's length
 local EXPIRE_RED = { 1, 0.2, 0.2, 1 }
 local REMAINING = Enum and Enum.DurationTextBindingProperty and Enum.DurationTextBindingProperty.RemainingDuration or 0
@@ -412,7 +411,7 @@ ns.registerPart("engineExpire", {
 -- (else "HELPFUL"), candidates(def) (candidate filters, else the aura's IDs), auraKey or buffKey
 -- (the aura's spell, any rank), ownIcon (the row's icon, not the aura's), noTimer (no time left),
 -- noGlow and noPop (without its own glow or pop; with neither, no effect host), charges (above),
--- swingMark (below), ownSpell (above), reagent (its count over the button: countOver), castUnder (its cast states also
+-- swingMark (below), ownSpell (below), reagent (its count over the button: countOver), castUnder (its cast states also
 -- on the icon under the button, for when the aura is down).
 -- Page texts, each optional: idleText (the Idle block), procHeader, popTip and glowTip (its active state's
 -- block), upLabel and idleLabel (its preview states), castNote and castTips (its cast states').
@@ -420,7 +419,7 @@ ns.registerPart("engineExpire", {
 --   make(def)                  at load, after the icon, before the aura slot: frames of its own;
 --                              returns { looks, extras }: aura looks set up, refiltered and checked
 --                              with the slot, and more slots on its container (makeAuraSlot); it
---                              may set def.borderHost (registerElement's: the frame its border is on)
+--                              may set def.borderHost (E.register's: the frame its border is on)
 --   aura(def)                  where the aura is read, else on the player: { unit, slot, parent,
 --                              site, glow = { unit, needUnit, parent } }
 --   button(def, slot, button)  Blizzard's button was made, after its pop and border
@@ -828,11 +827,9 @@ local function statesStyle()
 	end
 end
 
--- Cooldown rows with buffBar = { buffKey, talentKey, school }: a bar on the icon while that buff of
+-- Cooldown rows with buffBar = { buffKey, talentKey, school, note }: a bar on the icon while that buff of
 -- yours is up, drawn by Blizzard's aura button (a proc can't be timed from a cast). It takes Time
 -- left's style, always at the icon's top edge (the debuff's bar sits at the bottom); never a swipe.
--- Its switch, buffBar, starts off.
--- B.buffBarLearned(def) says whether its talent is learned.
 local BUFF_BARS = {}
 for _, def in ipairs(ns.CLASS.cooldowns or {}) do
 	if def.buffBar then table.insert(BUFF_BARS, { def = def, spec = def.buffBar }) end
