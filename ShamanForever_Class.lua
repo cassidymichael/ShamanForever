@@ -224,7 +224,6 @@ ns.Spells.add({
 	tremor          = { ids = { 8143 }, en = "Tremor Totem" },   -- level 18
 	curePoison      = { ids = { 526 }, en = "Cure Poison" },   -- level 16
 	cureDisease     = { ids = { 2870 }, en = "Cure Disease" },   -- level 22
-	-- Talents and higher-level spells
 	naturesSwiftness = { ids = { 16188 }, en = "Nature's Swiftness" },   -- the buff has the same ID
 	manaTide        = { ids = { 16190 }, en = "Mana Tide Totem" },
 	grounding       = { ids = { 8177 }, en = "Grounding Totem" },
@@ -238,7 +237,7 @@ ns.Spells.add({
 	waterBreathing  = { ids = { 131 }, en = "Water Breathing" },
 	elementalFocus  = { ids = { 16164 }, en = "Elemental Focus" },   -- a passive talent
 	clearcasting    = { ids = { 16246 }, en = "Clearcasting" },   -- its buff
-	-- Its buff shares the talent's name, so ShamanForever_Maelstrom.lua keeps the buff's ID out of this map
+	-- Its buff's ID is kept in ShamanForever_Maelstrom.lua (BUFF_IDS)
 	maelstromWeapon = { ids = { 408498 }, en = "Maelstrom Weapon" },
 	-- Talents whose buff has the talent's name: the buff is matched by ID
 	flurry          = { ids = { 16256 }, en = "Flurry" },
