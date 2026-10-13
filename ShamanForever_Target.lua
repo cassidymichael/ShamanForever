@@ -1,5 +1,5 @@
 -- Target: auras on your hostile target (rows of the buff kind with unit = "target")
--- Blizzard's aura container shows them, so a filter the client refuses shows nothing, never the wrong
+-- Blizzard's aura container picks and shows them, so a filter the client refuses shows nothing, never the wrong
 -- aura. It is pointed at the target at each change (no unit when not attackable), a state driver
 -- hides it for friendly targets, and a failed call puts its gate at alpha 0 rather than show the last target's.
 
@@ -134,8 +134,8 @@ ns.registerPart("missing", {
 			local h = CreateFrame("Frame", nil, def.gate)
 			h:SetAllPoints(f)
 			h:Hide()
-			-- Every frame while shown: the state driver checks only every 0.2 s, so the holder fades itself
-			-- out when the target dies (plain reads; SetAlpha on our own frame is allowed in combat)
+			-- Every frame while shown: the state driver checks only every 0.2 s, so the holder drops to alpha 0
+			-- itself when the target dies (plain reads; SetAlpha on our own frame is allowed in combat)
 			h:SetScript("OnUpdate", function(self)
 				local ok = hostileTarget() and def.pointedAt == "target" and not ns.cantAct()
 				if ok ~= self.trusted then
