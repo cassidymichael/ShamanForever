@@ -368,8 +368,7 @@ local function stepTo(x)
 	if sp.step then ns.try("guide step", sp.step, frames[cur], x) end
 end
 
--- No alpha animation on a slide: one on an ancestor of the examples overrides their own alpha (the
--- Idle example showed in full)
+-- No alpha animation on a slide: one on an ancestor of the examples overrides their own alpha
 local function makeSlide(i)
 	local f = CreateFrame("Frame", nil, board)
 	f:SetSize(BOARD_W, 1)
