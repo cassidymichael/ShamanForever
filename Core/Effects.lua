@@ -7,8 +7,7 @@ local FX = {}
 ns.Effects = FX
 
 -- The pulsing glow
--- Under Blizzard's aura button (underButton) the button plays the animations: g:bindButton hands
--- them over.
+-- Under Blizzard's aura button (underButton) the button plays the animations, handed over by g:bindButton
 local glows = {}
 local auraGlows = {}
 function FX.glow(parent, over, owner, opts)

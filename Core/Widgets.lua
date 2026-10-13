@@ -1111,7 +1111,7 @@ function ClipLook:took(size, filters)
 	AuraGate.took(self, size, filters)
 end
 
--- Waits for combat's end; the hold stays at 0 meanwhile.
+-- Waits for combat's end and readable auras; the hold stays at 0 meanwhile.
 function ClipLook:style()
 	self:update()
 	if not self.container or self.err or self.styleSoon then return end
