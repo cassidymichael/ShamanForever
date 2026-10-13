@@ -1318,7 +1318,7 @@ end
 
 -- A named setting's choice: b = { title, label, tip, name, choices ({ value, label } each), text (help
 -- under it), badge = { values, name } (the experimental badge while one of those values is chosen),
--- unlearned(value) (Not learned under it while that says so) }
+-- unlearned(value) (Not learned under it while that says so), waits (as toggleBlock's) }
 local function choiceBlock(p, key, b)
 	p:header(b.title)
 	local get, set = eopt(p, key, b.name)

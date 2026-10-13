@@ -127,7 +127,7 @@ function R.refresh(def)
 	return low and setting(def.key, "reagent", "lowKeepsShown") and true or false, ring, pulse
 end
 
--- The reagent part (ns.registerPart): its count and None left look, for any kind
+-- The reagent part: its count and None left look, for cooldowns and buffs
 local PLENTY = 15
 local function fewLeft(key)
 	local v = setting(key, "reagent", "low")

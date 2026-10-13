@@ -76,7 +76,7 @@ function ns.utf8Cut(s, n)
 	return s
 end
 
--- Errors caught by a pcall around a proven call: the first per place is kept for /sf debug
+-- Errors noted under a site: the first per site is kept, with a count, for /sf debug
 local errors, errorOrder = {}, {}
 function ns.noteError(site, err)
 	local e = errors[site]
@@ -132,12 +132,10 @@ function ns.cache(limit, make)
 	end
 end
 
--- Work that waits for combat to end (protected frames, restyles of Blizzard's aura buttons).
--- `if ns.deferInCombat(key, fn) then return end`: queued once per key in combat and run
--- when combat ends; out of combat it runs now.
--- Aura container work that also waits while auras are secret out of combat (PvP, encounters):
--- ns.deferWhileAurasSecret; the queue also runs when an addon restriction ends.
--- States: combat (lockdown), restricted (a match or encounter: same secrets, no lockdown), readable.
+-- Work that waits for combat to end (protected frames, state drivers, restyles of Blizzard's aura buttons):
+-- `if ns.deferInCombat(key, fn) then return end` queues it once per key; out of combat it runs now.
+-- Aura container work uses ns.deferWhileAurasSecret, which also waits while auras are secret out of
+-- combat (a match, an encounter); the queue runs when combat or an addon restriction ends.
 local queued, queueOrder, listed = {}, {}, {}
 function ns.retryAfterCombat(key, fn)
 	if not listed[key] then listed[key] = true; table.insert(queueOrder, key) end
@@ -251,10 +249,10 @@ function ns.lastSeconds(secs)
 end
 
 -- After combat: a combat-only group or bar can stay a few seconds once combat ends, then fade. Its
--- visibility stays with its state driver (an addon can't show or hide a frame holding a protected
--- one in combat): when combat starts the driver becomes a plain "show",
--- out of combat it fades, then its own driver returns. The fade is an Alpha animation with no end
--- value: the frame's alpha never changes.
+-- visibility stays with its state driver (a driven frame is never shown or hidden by hand; a protected
+-- bar refuses it in combat): when combat starts the driver becomes a plain "show"; out of combat it
+-- fades, then its own driver returns. The fade is an Alpha animation with no end value: the frame's
+-- alpha never changes.
 local AfterCombat = {}
 ns.AfterCombat = AfterCombat
 local FADE_SECS = 0.4

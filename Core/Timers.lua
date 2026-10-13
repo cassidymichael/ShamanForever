@@ -1,5 +1,5 @@
 -- Timers
--- Fed duration objects, so nothing here reads a time: secret values go straight to widgets and curves.
+-- Fed duration objects where a time may be secret: those go straight to widgets and curves, never read.
 
 local _, ns = ...
 local W = ns.Widgets

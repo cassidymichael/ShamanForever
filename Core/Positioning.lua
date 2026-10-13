@@ -249,10 +249,9 @@ function PO.decorate(gf, g)
 	gf.label:SetShown(unlocked)
 end
 
--- Nudging: the arrow keys move the selected group by 1 (Shift: 10). Keyboard capture is restricted
--- in combat, and a frame left swallowing keys when combat starts would block every key for the
--- fight: only the arrows and Escape are kept, for the key press itself, and the frame hides itself
--- at combat start (always allowed for our own frame).
+-- Nudging: the arrow keys move the selected group by 1 (Shift: 10). A frame left swallowing keys in
+-- combat would block every key for the fight, and capture may be refused there: only the arrows and
+-- Escape are kept, for the key press itself, and the frame hides at combat start.
 local NUDGE_KEYS = { UP = { 0, 1 }, DOWN = { 0, -1 }, LEFT = { -1, 0 }, RIGHT = { 1, 0 } }
 local nudger = CreateFrame("Frame", ns.NAME .. "Nudge", UIParent)
 nudger:Hide()
@@ -275,7 +274,7 @@ end
 local function syncNudger()
 	local on = (selectedGroup ~= nil or selectedMovable ~= nil) and not acct().locked and not InCombatLockdown()
 	if on and not nudger.keys then
-		-- Out of combat only (restricted in combat), so not at file load: a /reload in combat would lose them
+		-- Out of combat only: keyboard calls may be refused in a fight
 		nudger:EnableKeyboard(true)
 		nudger:SetPropagateKeyboardInput(true)
 		nudger.keys = true
@@ -290,9 +289,8 @@ function PO.select(id)
 	G.layoutElements()
 end
 
--- A frame that moves on its own (a bar). m: frame, nudge(dx, dy), lock()
--- (combat started while unlocked)
--- bar: the key it registered under
+-- A frame that moves on its own (a bar; bar: its key in ns.Bars). m: frame, nudge(dx, dy),
+-- lock() (combat started while unlocked)
 function PO.addMovable(m, bar)
 	m.bar = bar
 	table.insert(movables, m)
@@ -539,10 +537,8 @@ function PO.update()
 	if not unlocked then showGuides() end
 end
 
--- Combat locks positioning. Showing, moving and mouse changes on group frames are dropped in combat
--- (a group can hold Blizzard's protected aura button), so only the looks change; the full
--- layout runs when combat ends. Groups stop taking the mouse, or they would eat clicks, camera
--- drags and wheel zoom for the whole fight.
+-- Combat locks positioning: only the looks change now, the full layout runs when combat ends. Groups
+-- stop taking the mouse, or they would eat clicks, camera drags and wheel zoom for the whole fight.
 function PO.lockInCombat()
 	acct().locked = true
 	ns.Options.comeBack("positioning", true)
