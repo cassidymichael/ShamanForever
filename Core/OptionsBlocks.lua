@@ -1091,7 +1091,7 @@ local function readyBlock(p, owner, opts)
 	local s = store(p, owner, opts.after)
 	if not s.has("ready") then return end
 	p:header("Ready")
-	local pop = check(p, s, "ready", "pop", "Pop", "The moment the cooldown ends.")
+	local pop = check(p, s, "ready", "pop", "Pop", "The moment it comes off cooldown.")
 	if pop and opts.blocked and s.has("ready", "blocked") then
 		p:sub(pop, s.get("ready", "pop"), function()
 			local get, set = s.opt("ready", "blocked")
@@ -1099,7 +1099,7 @@ local function readyBlock(p, owner, opts)
 		end)
 	end
 	check(p, s, "ready", "glow", "Pulsing glow", opts.glowTip or "While it's off cooldown.")
-	soundRow(p, s, "ready", "Sound", "The moment the cooldown ends.")
+	soundRow(p, s, "ready", "Sound", "The moment it comes off cooldown.")
 end
 
 -- An experimental badge under the row just added (feature: its name in About's list)
@@ -1318,7 +1318,7 @@ end
 
 -- A named setting's choice: b = { title, label, tip, name, choices ({ value, label } each), text (help
 -- under it), badge = { values, name } (the experimental badge while one of those values is chosen),
--- unlearned(value) (Not learned under it while that says so) }
+-- unlearned(value) (Not learned under it while that says so), waits (as toggleBlock's) }
 local function choiceBlock(p, key, b)
 	p:header(b.title)
 	local get, set = eopt(p, key, b.name)

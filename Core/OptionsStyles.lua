@@ -756,7 +756,7 @@ local function artHeader(p, text)
 	OA.expBadge(f, "Art frames"):SetPoint("LEFT", f.text, "RIGHT", 10, 0)
 end
 
--- Glows that differ by school are left out for now
+-- Glows that differ by school are left out
 local function notSchooled(e) return not e.bySchool end
 
 function SP.build(p)

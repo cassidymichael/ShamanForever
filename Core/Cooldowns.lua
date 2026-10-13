@@ -14,14 +14,14 @@ ns.Cooldowns = CD
 local setting = E.setting
 
 -- Elements: the class's rows (ns.CLASS.cooldowns). A row's fields: key, spellKey, icon, school,
--- blurb, experimental; its parts' flags (this file's parts: readyGlow, lowMana, noReadyPop,
--- reset; others' below, auraState in _Buffs); expireLooks (which looks Expiring offers; false:
--- none), race (race IDs; others see "Not your race"), cd and duration (preview only),
--- defaults (over the parts'), choices, styles and timerCant (see E.register).
+-- blurb, experimental; its parts' flags (this file's: readyGlow, lowMana, noReadyPop, reset; auraState
+-- and buffBar in _Buffs); expireLooks (which looks Expiring offers; false: none), race (race IDs; others
+-- see "Not your race"), cd and duration (preview only), defaults (over the parts'), ranges, choices,
+-- styles and timerCant (see E.register).
 local COOLDOWNS = ns.CLASS.cooldowns or {}
 
 -- The kind and its parts (ns.registerPart); a row's flags name its parts. Other files' parts join
--- it: the reagent's (_Reagents), Expiring's (_Timers), a class's own.
+-- it: the reagent's (_Reagents), the cast states' (_CastStates), Expiring's (_Timers), a class's own.
 local IDLE_NEVER = { "never", "Never", "It always shows in full" }
 local IDLE_OFFCD = { "offcd", "Ready", "Idle while it's ready%s" }
 local IDLE_ONCD = { "oncd", "Cooling down", "Idle while it's cooling down%s",
@@ -86,10 +86,9 @@ ns.registerPart("ready", {
 local GLOW_ONLY = "Only while its glow is on."
 ns.registerPart("readyGlow", { defaults = { ready = { glow = false }, idleKeep = { ready = false } }, glow = true,
 	idle = { keep = { "ready", "Ready glow", GLOW_ONLY } }, preview = { keeps = { ready = "ready" } } })
--- reset = { talent }: a Reset event (the cooldown ends early, by that talent), and its ready then.
--- Its pop and sound take the place of Ready's when it plays; the pop has a style of its own, which an
--- element ships different from its Pop style (resetpop); its text is the player's words by the icon for a
--- set time (the word's look: W.WORD's settings); experimental
+-- reset = { talent }: a Reset event (that talent ends the cooldown early), and its ready then. Its pop
+-- and sound take Ready's place; its pop has its own shipped style (resetpop); its text is the player's
+-- words by the icon for a set time, styled by W.WORD's settings
 local RESET_POP = { colorBy = "event", flash = "edge", burst = "both", motion = "bounce", size = 1.8, speed = 1,
 	reach = 1.3 }
 local RESET_WORDS, RESET_WORDS_MAX, WORD_FADE = "Reset!", 24, 0.2
@@ -362,13 +361,35 @@ local function plainCooldown(spellID)
 end
 -- Arms the next ready only when our own cast starts the cooldown, or at the first look after a
 -- login, never on a guess: a missed ready beats a false one.
-local READY_GRACE, ARM_AFTER_CAST = 0.5, 1.5
-local function arm(r) r.armed, r.by, r.castAt = true, nil, nil end
+-- TURN_AFTER_ARM: a read before then is the arming cast's own GCD's
+local READY_GRACE, ARM_AFTER_CAST, TURN_AFTER_ARM = 0.5, 1.5, 1.5
+local function arm(r) r.armed, r.by, r.castAt, r.armedAt = true, nil, nil, GetTime() end
+-- Ready begins before the tracker's end, which then plays nothing; one hook's error stops no other
+local function readyEarly(r, reset)
+	r.armed, r.by, r.castAt, r.turning = nil, nil, nil, nil
+	r.at = GetTime()
+	if reset then r.reset = r.at end
+	for _, fn in ipairs(r.fns) do ns.try("ready", fn) end
+end
+-- A row whose Reset is known waits a frame: an event naming its spell later in the frame is the Reset
+local function turn(f, r)
+	if not f.waitsReset then return readyEarly(r) end
+	if r.turning then return end
+	r.turning = true
+	C_Timer.After(0, function()
+		if r.turning and r.armed then readyEarly(r) end
+		r.turning = nil
+	end)
+end
 local function noteReady(f, st, inEvent)
 	local r = f.ready
-	if st == "ready" then
+	-- Ready begins in the event whose read says only a GCD, or nothing, stands in the way
+	if (st == "gcd" or st == "ready") and inEvent and r.armed and not r.by and GetTime() - r.armedAt > TURN_AFTER_ARM
+		and f.ownCd:IsShown() and not (ns.zoning() or ns.cantAct()) then
+		turn(f, r)
+	elseif st == "ready" then
 		-- Its own cooldown read over: the tracker's end within the grace is its ready, a later one isn't
-		if r.armed and not r.by then r.by = GetTime() + READY_GRACE end
+		if r.armed and not r.by and not r.turning then r.by = GetTime() + READY_GRACE end
 	elseif st == "own" and inEvent and r.castAt and GetTime() - r.castAt <= ARM_AFTER_CAST then
 		arm(r)
 	end
@@ -387,14 +408,11 @@ local function checkReset(def, spellID, baseID)
 	if not f.ownCd:IsShown() or ns.zoning() or ns.cantAct() then return end
 	local st = plainCooldown(def.spellID)
 	if st == nil or st == "own" then return end
-	r.armed, r.by, r.castAt = nil, nil, nil
-	r.at = GetTime()
-	r.reset = r.at
 	local log = def.resetLog or {}
 	def.resetLog = log
 	table.insert(log, string.format("%.0f (%s, %s) %s", GetTime(), tostring(spellID), tostring(baseID), st))
 	if #log > 5 then table.remove(log, 1) end
-	for _, fn in ipairs(r.fns) do fn() end
+	readyEarly(r, true)
 end
 
 local function quietCooldown(f)
@@ -448,7 +466,7 @@ end
 function CD.resetReady(f, off)
 	local r = f.ready
 	if not r then return end
-	r.armed, r.by, r.castAt, r.fresh = nil, nil, nil, off or nil
+	r.armed, r.by, r.castAt, r.fresh, r.turning = nil, nil, nil, off or nil, nil
 	f.ownCd:Clear()
 end
 function CD.readyNow(f) return f.ready ~= nil and f.ready.at == GetTime() end
@@ -641,7 +659,6 @@ local hasTimeLeftCurve = ns.CURVE_LIVE
 -- IsSpellUsable: mana would remove it.
 local function readyAlpha(spellID, cantAct)
 	if cantAct then return 0 end
-	-- A failed read is noted once per place (ns.try)
 	local ok, dur = ns.try("ready glow cooldown", C_Spell.GetSpellCooldownDuration, spellID, true)
 	if not ok then return 0 end
 	if not dur then return 1 end
@@ -705,6 +722,7 @@ function CD.resolve()
 		if known ~= def.spellID then def.takesReagent = nil end
 		def.spellID, def.iconID = known, knownIcon
 		def.resetKnown = def.reset ~= nil and Spells.known(def.reset.talent) ~= nil
+		def.frame.waitsReset = def.resetKnown
 		table.insert(sig, tostring(def.spellID)); table.insert(sig, tostring(def.iconID))
 	end
 	return table.concat(sig, ",")

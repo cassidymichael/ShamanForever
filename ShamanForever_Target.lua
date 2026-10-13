@@ -1,10 +1,7 @@
 -- Target: auras on your hostile target (rows of the buff kind with unit = "target")
--- Only Blizzard's aura container can show auras on another unit. The engine picks the aura, so a
--- filter the client refuses shows nothing, never the wrong aura.
--- The container doesn't follow a target change: it is pointed at the target (no unit when not
--- attackable), and a state driver ([@target,harm,nodead]) hides it for friendly targets.
--- A failed call sets the gate to alpha 0: nothing shows rather than the last
--- target's aura.
+-- Blizzard's aura container picks and shows them, so a filter the client refuses shows nothing, never the wrong
+-- aura. It is pointed at the target at each change (no unit when not attackable), a state driver
+-- hides it for friendly targets, and a failed call puts its gate at alpha 0 rather than show the last target's.
 
 local _, ns = ...
 local P = ns.Profiles
@@ -19,7 +16,7 @@ local setting = E.setting
 
 -- Rows: the class's target elements
 -- Rows of the buff kind (_Buffs lists the aura fields its builder reads). Here: unit = "target",
--- which needs proc = true; parts missing (needs auraKey), engineExpire (_Buffs; missing's read checks
+-- which needs proc = true; parts missing (needs auraKey or buffKey), engineExpire (_Buffs; missing's read checks
 -- the aura's length), skipLong (below), power and range (_CastStates); page texts idleText,
 -- procHeader, popTip, glowTip, upLabel, idleLabel, castNote and castTips (its cast states').
 local TARGET = {
@@ -137,8 +134,8 @@ ns.registerPart("missing", {
 			local h = CreateFrame("Frame", nil, def.gate)
 			h:SetAllPoints(f)
 			h:Hide()
-			-- Every frame while shown: the state driver checks only every 0.2 s, so the holder hides itself
-			-- when the target dies (plain reads, SetAlpha on our own frame: allowed in combat)
+			-- Every frame while shown: the state driver checks only every 0.2 s, so the holder drops to alpha 0
+			-- itself when the target dies (plain reads; SetAlpha on our own frame is allowed in combat)
 			h:SetScript("OnUpdate", function(self)
 				local ok = hostileTarget() and def.pointedAt == "target" and not ns.cantAct()
 				if ok ~= self.trusted then
@@ -462,7 +459,6 @@ function retarget(only)
 	glowsFollow(unit)
 end
 
--- Followers not on the unit they want yet (a new one, a call that failed, a change of wanted())
 local events, auraEvents   -- set(on), from start
 local function syncEvents()
 	if not events then return end
@@ -473,6 +469,7 @@ local function syncEvents()
 	end
 	auraEvents(reads)
 end
+-- Followers not on the unit they want yet (a new one, a call that failed, a change of wanted())
 local function followAll()
 	syncEvents()
 	local unit = followedUnit()

@@ -494,21 +494,11 @@ local function atlasSource(name)
 	return s
 end
 
--- true or false as the client says; nil when it can't tell
-local tester
+-- IsKnownFile's answer (SetTexture returns true even for a missing file); nil when it can't tell
 local function fileKnown(src)
-	if not tester then
-		tester = UIParent:CreateTexture(nil, "BACKGROUND")
-		tester:Hide()
-	end
-	local ok, set = pcall(tester.SetTexture, tester, src)
-	tester:SetTexture(nil)
-	if ok and type(set) == "boolean" then return set end
-	if C_UIFileAsset and C_UIFileAsset.IsKnownFile then
-		local ok2, yes = pcall(C_UIFileAsset.IsKnownFile, src)
-		if ok2 and type(yes) == "boolean" then return yes end
-	end
-	if not ok then return false end
+	if not (C_UIFileAsset and C_UIFileAsset.IsKnownFile) then return nil end
+	local ok, yes = pcall(C_UIFileAsset.IsKnownFile, src)
+	if ok and type(yes) == "boolean" then return yes end
 end
 
 local function needsRegion(a) return a.coords or (a.rotate or 0) ~= 0 or a.flipX or a.flipY end

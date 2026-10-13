@@ -22,7 +22,7 @@ local listeners = {}
 function TO.subscribe(fn) table.insert(listeners, fn) end
 local function notify(...) for _, fn in ipairs(listeners) do fn(...) end end
 
--- Dismissals all go through DestroyTotem
+-- Dismissals go through DestroyTotem; Totemic Recall is told by its cast (TO.onCast)
 local dismissedAt = {}
 if DestroyTotem then
 	hooksecurefunc("DestroyTotem", function(slot)
@@ -316,7 +316,7 @@ ns.registerPart("needsTotem", {
 		uptime = "Fire totem's time left",
 		ready = { glowTip = "While it's off cooldown and a fire totem is down.",
 			blocked = { "Without a fire totem",
-				"The pop when the cooldown ends with no fire totem down." } },
+				"The pop when it comes off cooldown with no fire totem down." } },
 	},
 	preview = {
 		uptime = true, typical = "out", warning = "nototem", keeps = { ready = "ready" },

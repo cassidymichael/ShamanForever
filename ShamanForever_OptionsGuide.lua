@@ -206,11 +206,9 @@ local function lookFor(st, i)
 	return look
 end
 
--- Where the three icons sit on step st and at what size, and how far below the icons' centre the
--- art reaches (where the line to the Element box starts); cy: the middle of the stage's free area
--- (between the step's name and its dots). Element art frames are spaced by the part of their art
--- that is drawn: equal gaps between the drawn edges, the row centred, at one size for every such step
--- (as large as fits); every other part keeps one size and spacing.
+-- Where the three icons sit on step st, their size, and how far below their centre the art reaches (the
+-- line to the Element box starts there); cy: the middle of the stage between the step's name and its dots.
+-- Element art frames are spaced by their drawn art, at one size for every such step (as large as fits).
 local ART_GAP, STYLE_STAGE = 24, 204
 local NO_REACH = { left = 0, right = 0, top = 0, bottom = 0 }
 local function drawn(st, i)

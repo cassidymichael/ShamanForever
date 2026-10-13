@@ -36,9 +36,9 @@ local BUFF_TOTEMS = {
 	},
 }
 
--- Seen giving their buff in game: their marks never wait to see it (any rank)
-local PROVEN = { 8075, 8071, 5394 }
--- Not yet tested in game: labelled experimental
+-- Known to give their buff: their marks never wait to see it (any rank)
+local PROVEN = { 8075, 8071, 5394, 5675 }
+-- Labelled experimental
 local UNTESTED = { 8227, 8512, 16190 }
 -- The main-hand imbue that cancels your own benefit from a totem (any rank)
 local IMBUE_CANCELS = { [8227] = "flametongue", [8512] = "windfury" }
@@ -92,7 +92,6 @@ local function seen(id)
 	return proven[id] or P.getAccount().rangeSeen[id] == true
 end
 
--- The mark's rect in the icon, from the slot box's top left
 local function timeBarOnTop()
 	local S = ns.Style
 	return TB.skin.place("barPlace") ~= "out" and S.value("totembar", "uptime", "bar") == true
@@ -134,6 +133,7 @@ local function besideRect(v, size, inset, c)
 	return size + off, -from, h, w, kind
 end
 
+-- The mark's rect, from the slot box's top left
 function RG.rect(v, size, inset)
 	local c = TB.cfg()
 	if TB.skin.place("rangePlace") == "out" then return besideRect(v, size, inset, c) end
