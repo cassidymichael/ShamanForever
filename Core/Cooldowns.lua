@@ -361,27 +361,37 @@ local function plainCooldown(spellID)
 end
 -- Arms the next ready only when our own cast starts the cooldown, or at the first look after a
 -- login, never on a guess: a missed ready beats a false one.
--- TURN_AFTER_ARM: a GCD read before then is the arming cast's own GCD
+-- TURN_AFTER_ARM: a read before then is the arming cast's own GCD's
 local READY_GRACE, ARM_AFTER_CAST, TURN_AFTER_ARM = 0.5, 1.5, 1.5
 local function arm(r) r.armed, r.by, r.castAt, r.armedAt = true, nil, nil, GetTime() end
 -- Ready begins before the tracker's end, which then plays nothing; one hook's error stops no other
 local function readyEarly(r, reset)
-	r.armed, r.by, r.castAt = nil, nil, nil
+	r.armed, r.by, r.castAt, r.turning = nil, nil, nil, nil
 	r.at = GetTime()
 	if reset then r.reset = r.at end
 	for _, fn in ipairs(r.fns) do ns.try("ready", fn) end
 end
+-- A row whose Reset is known waits a frame: an event naming its spell later in the frame is the Reset
+local function turn(f, r)
+	if not f.waitsReset then return readyEarly(r) end
+	if r.turning then return end
+	r.turning = true
+	C_Timer.After(0, function()
+		if r.turning and r.armed then readyEarly(r) end
+		r.turning = nil
+	end)
+end
 local function noteReady(f, st, inEvent)
 	local r = f.ready
-	if st == "ready" then
+	-- Ready begins in the event whose read says only a GCD stands in the way
+	if st == "gcd" and inEvent and r.armed and not r.by and GetTime() - r.armedAt > TURN_AFTER_ARM
+		and f.ownCd:IsShown() and not (ns.zoning() or ns.cantAct()) then
+		turn(f, r)
+	elseif st == "ready" then
 		-- Its own cooldown read over: the tracker's end within the grace is its ready, a later one isn't
-		if r.armed and not r.by then r.by = GetTime() + READY_GRACE end
+		if r.armed and not r.by and not r.turning then r.by = GetTime() + READY_GRACE end
 	elseif st == "own" and inEvent and r.castAt and GetTime() - r.castAt <= ARM_AFTER_CAST then
 		arm(r)
-	elseif st == "gcd" and inEvent and r.armed and not r.by and GetTime() - r.armedAt > TURN_AFTER_ARM
-		and f.ownCd:IsShown() and not (ns.zoning() or ns.cantAct()) then
-		-- Only a GCD stands in the way now: another spell's outlasts what is left, or a reset inside one
-		readyEarly(r)
 	end
 end
 -- Reset: the event names the spell our cast armed, its tracker is still shown and the read isn't its own
@@ -456,7 +466,7 @@ end
 function CD.resetReady(f, off)
 	local r = f.ready
 	if not r then return end
-	r.armed, r.by, r.castAt, r.fresh = nil, nil, nil, off or nil
+	r.armed, r.by, r.castAt, r.fresh, r.turning = nil, nil, nil, off or nil, nil
 	f.ownCd:Clear()
 end
 function CD.readyNow(f) return f.ready ~= nil and f.ready.at == GetTime() end
@@ -712,6 +722,7 @@ function CD.resolve()
 		if known ~= def.spellID then def.takesReagent = nil end
 		def.spellID, def.iconID = known, knownIcon
 		def.resetKnown = def.reset ~= nil and Spells.known(def.reset.talent) ~= nil
+		def.frame.waitsReset = def.resetKnown
 		table.insert(sig, tostring(def.spellID)); table.insert(sig, tostring(def.iconID))
 	end
 	return table.concat(sig, ",")
