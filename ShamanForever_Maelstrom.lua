@@ -1,10 +1,6 @@
 -- Maelstrom Weapon (an Enhancement talent): its stacks, and a pop and glow at five
--- Stacks are secret in combat, so Blizzard's aura container draws them. Four slots follow the buff:
--- the stacks; the pop, a container visible only at five (a new stack updates the same aura and
--- plays no animation, so the fifth must be a "new aura"); and a clip that covers the icon at
--- exactly five stacks, holding the glow.
--- Nothing here reads the buff or compares stacks; nothing under Blizzard's buttons gets a script
--- handler or reads back.
+-- Stacks are secret in combat, so Blizzard's aura containers draw them and nothing here reads the buff.
+-- A new stack plays no animation, so the pop's container shows only at five, where the buff is new to it.
 
 local _, ns = ...
 local P = ns.Profiles
@@ -13,8 +9,7 @@ local E, G, MOD = ns.Elements, ns.Groups, ns.Modules
 local say, isSecret, safe = ns.say, ns.isSecret, ns.safe
 local Spells, Count = ns.Spells, W.Count
 
--- The buff's seed ID, kept out of Spells.DEFS: it shares its name with the talent, and two keys with
--- one name would make the name lookup file a new ID under either at random
+-- The buff's seed ID (it shares the talent's name)
 local BUFF_IDS = { 408505 }
 Spells.addCheck("Maelstrom Weapon (buff)", BUFF_IDS)
 local function buffIcon()
@@ -249,10 +244,8 @@ end
 
 local gateSlot
 
--- Blizzard hands the pop its animations whenever it assigns the buff, also with no new fifth stack
--- (login, /reload, loading screen, refilter, first pass, Pop turned on): for QUIET seconds after
--- each, the pop's visible parts stay off, set out of combat only. Not quietable: a group shown in
--- combat, a refilter or loading screen in combat.
+-- Blizzard hands the pop its animations at every assignment of the buff, not only a fifth stack (login,
+-- /reload, loading screen, Pop turned on): quiet for QUIET seconds after; not in combat (a group shown then pops)
 local QUIET = 2
 local quietToken
 local function restylePop()

@@ -62,6 +62,7 @@ ns.CLASS.cooldowns = {
 	{ key = "chainlightning", power = true, range = true, spellKey = "chainLightning", icon = 136015, school = "air",
 		blurb = "Cooldown.", readyGlow = true, cd = 6, defaults = { ready = { pop = false } },
 		experimental = "Chain Lightning" },
+	-- Others
 	auraBuff({ key = "farseer", spellKey = "rageOfTheFarseer", icon = 136048, auraState = { length = 25 },
 		school = "air", cd = 180, experimental = "Rage of the Farseer" }),
 	{ key = "projection", power = true, spellKey = "totemicProjection", icon = 136099, school = "spirit",
@@ -85,7 +86,7 @@ ns.CLASS.cooldowns = {
 		blurb = "Cooldown.", readyGlow = true, cd = 120, experimental = "War Stomp" },
 	auraBuff({ key = "stoneform", spellKey = "stoneform", icon = 136225, race = { 3 }, auraState = { length = 8 },
 		school = "earth", cd = 180 }),
-	-- Walk on Air: cooldown only, its real length is unseen
+	-- Walk on Air: cooldown only, its buff's length unknown
 	{ key = "walkonair", spellKey = "walkOnAir", icon = 132845, race = { 96 }, school = "air",
 		blurb = "Cooldown.", readyGlow = true, cd = 120, experimental = "Walk on Air" },
 	{ key = "skysight", spellKey = "skysight", icon = 1029587, race = { 96 }, school = "air",

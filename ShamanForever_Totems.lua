@@ -22,7 +22,7 @@ local listeners = {}
 function TO.subscribe(fn) table.insert(listeners, fn) end
 local function notify(...) for _, fn in ipairs(listeners) do fn(...) end end
 
--- Dismissals all go through DestroyTotem
+-- Dismissals go through DestroyTotem; Totemic Recall is told by its cast (TO.onCast)
 local dismissedAt = {}
 if DestroyTotem then
 	hooksecurefunc("DestroyTotem", function(slot)
