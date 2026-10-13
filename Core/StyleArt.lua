@@ -163,7 +163,7 @@ local function drawOverlay(f, art)
 		f.frameOverlay = t
 	end
 	local w = f:GetWidth()
-	if ns.isSecret(w) then return end   -- secret on Blizzard's aura button: next layout
+	if ns.isSecret(w) then return end   -- a secret width: placed at the next layout
 	placeArt(t, art, f, w)
 	setArt(t, art)
 	t:Show()
@@ -210,7 +210,7 @@ local function placeMask(m, spec, over, w, h)
 	if spec.atlas then m:SetAtlas(spec.atlas, false, nil, nil, CLAMP, CLAMP)
 	else m:SetTexture(spec.file, spec.wrap or CLAMP, spec.wrap or CLAMP) end
 	m:ClearAllPoints()
-	-- A secret size (Blizzard's aura button's) can't be scaled: the mask fits the picture exactly.
+	-- A size that reads secret can't be scaled: the mask fits the picture exactly.
 	if (spec.scale or 1) == 1 or ns.isSecret(w) or ns.isSecret(h) then m:SetAllPoints(over)
 	else
 		m:SetPoint("CENTER", over, "CENTER", 0, 0)
