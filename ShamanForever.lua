@@ -1,7 +1,5 @@
 -- The HUD: elements, groups, bars, modules and the active profile
--- Rule: never do Lua math or comparisons on a possibly-secret value. In combat, show state through
--- Blizzard's own widgets (the aura container, duration objects, curves into SetAlpha); what can't
--- be read is inferred from our own casts.
+-- Never do Lua logic on a value that may be secret: hand it to Blizzard's widgets, or infer it from our casts
 
 local ADDON, ns = ...
 local W = ns.Widgets
@@ -53,8 +51,7 @@ local isActive = false
 
 -- Elements and their modules
 -- root spans the screen and takes no input: the parent of every group, hidden for other classes.
--- Not named <addon>Frame: older versions dragged a frame of that name and the layout cache would
--- re-anchor it.
+-- Not <addon>Frame: the client's layout cache re-anchors a frame of that name that older versions dragged.
 local root = CreateFrame("Frame", ns.NAME .. "Root", UIParent)
 root:SetAllPoints(UIParent)
 
@@ -86,7 +83,7 @@ local ELEMENTS = {}
 local function iconSize(size) return size, size end
 local NO_EFFECTS = { glow = false, pop = false }
 local BASE_RANGES = { idleAlpha = { 0, 1, 0.05 } }
--- Every element's own settings beside its defaults (_Profiles has the vocabulary)
+-- Settings every element has, beside its own defaults (_Profiles has the vocabulary)
 local BASE = { defaults = { on = true, show = "always" }, choices = { show = { "always", "combat" } } }
 -- Idle when takes the values its Idle choices list (def.idleChoices, set by its module or filled from its parts
 -- by _Kinds), so _Profiles drops any other
@@ -175,8 +172,7 @@ function Bars.register(key, spec)
 end
 -- A bar's top frame goes in a holder under root, hidden while off: Bars.parent(true) for protected
 -- frames (that holder is protected itself, so the on-off toggle can hide it in combat; anything
--- else waits for combat to end), Bars.parent() for the rest (set at once, and again as combat ends:
--- a bar holding Blizzard's aura button may make it refuse a change in combat)
+-- else waits for combat to end), Bars.parent() for the rest (shown and hidden at once)
 local barHolders = {}
 for _, kind in ipairs({ "plain", "secure" }) do
 	local h = CreateFrame("Frame", nil, root, kind == "secure" and "SecureFrameTemplate" or nil)
@@ -618,11 +614,10 @@ local function groupFrame(id)
 	return f
 end
 
--- Combat-only visibility uses Blizzard's secure state driver: a frame holding a protected one can't
--- be shown or hidden by an addon in combat (its alpha can be set). The manager re-applies its state
--- every 0.2 s and won't show a frame it lets go of, so a driven frame is never shown or hidden by
--- hand. Out of combat only. Groups and elements are driven separately: an element shows only when
--- both allow it.
+-- Combat-only visibility uses Blizzard's secure state driver, set out of combat only. The manager
+-- re-applies its state every 0.2 s and won't show a frame it lets go of, so a driven frame is never
+-- shown or hidden by hand. Groups and elements are driven separately: an element shows only when both
+-- allow it.
 local function setDriven(frame, when)
 	ns.setVisibilityDriver(frame, when or nil, "state driver " .. (frame:GetName() or tostring(frame)))
 end
@@ -683,9 +678,8 @@ local function afterCombat(gf)
 	})
 end
 
--- Every member anchors to the group frame, never to another: a frame a protected frame anchors to
--- may turn protected too (Blizzard's aura button), so a chain could stop members changing in combat.
--- A member's Size is its box, border included; its art frame hangs where its border is drawn.
+-- Every member anchors to the group frame, never to another. A member's Size is its box, border
+-- included; its art frame hangs where its border is drawn.
 local function layoutGroup(g)
 	local gf = groupFrame(g.id)
 	gf.afterCombat = gf.afterCombat or afterCombat(gf)
@@ -763,7 +757,7 @@ end
 
 -- New default groups
 local CLEAR = 8   -- UI units between a stepped group and its neighbours
--- { left, bottom, right, top } in UI units of a box whose point is at (x, y) from the screen's
+-- { left, bottom, right, top } in UI units of a w by h box whose point is at (x, y) from the screen's same point
 local function boxAt(point, x, y, w, h)
 	local pw, ph = UIParent:GetSize()
 	local fx = point:find("LEFT") and 0 or point:find("RIGHT") and 1 or 0.5
@@ -851,7 +845,7 @@ local function settleFresh()
 	end
 end
 
--- Deferred in combat: a group can be an ancestor of Blizzard's protected aura button
+-- Deferred in combat: it sets state drivers, which change only out of combat
 local function layoutElements()
 	if ns.deferInCombat("layout", layoutElements) then return end
 	for key, e in pairs(ELEMENTS) do
@@ -1157,7 +1151,7 @@ end
 local function selectProfile(name)
 	if type(acct.profiles[name]) ~= "table" then acct.profiles[name] = {} end
 	profileName, db = name, acct.profiles[name]
-	P.migrate(db)   -- renamed and retired settings: drop after launch
+	P.migrate(db)   -- renamed and retired settings
 	fillDefaults(db, DEFAULTS)
 	for _, key in ipairs(BAR_ORDER) do
 		local saved = BARS[key].saved
