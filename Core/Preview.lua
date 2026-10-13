@@ -142,7 +142,7 @@ local function place(key, r)
 	h:SetAlpha(gf:GetAlpha())
 	h:Show()
 	r.live = true
-	-- An element above Blizzard's button keeps its own border under its stand-in unless that border is
+	-- An element under Blizzard's button keeps its own border under its stand-in unless that border is
 	-- on parts that show only with a hostile target or their aura (standInBorder): the stand-in draws theirs
 	local own = f.holdsAuraButton and f:IsVisible() and not E.ALL[key].standInBorder
 	local ic, st = standIns[key], ns.Style.read(key, "frame")
