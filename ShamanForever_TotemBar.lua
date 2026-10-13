@@ -1,14 +1,10 @@
 -- Totem bar
--- Every click is a secure button set up out of combat, so it works in combat: slot buttons
--- (destroytotem, multi-cast action), pickers opened by a secure header's snippets, and "multispell"
--- popout buttons (spell 0 is "No totem"). Layout, attributes and anything that shows, hides or
--- moves a secure button happen out of combat only; what the player sees sits on plain frames over
--- them.
--- Verbs: apply (settings changed), layout (out of combat), refresh (read the slots and show them),
--- draw (ten times a second).
--- In combat the totem in a slot is secret: its icon goes straight to SetTexture, timers use the
--- slot's duration object, warnings are a curve into SetAlpha. Which totem it is comes from our own
--- casts (ns.Totems), by spell ID.
+-- Every click is a secure button set up out of combat, so it works in combat (slot buttons, pickers
+-- opened by a secure header's snippets, "multispell" popout buttons: spell 0 is "No totem"). Anything
+-- that shows, hides or moves one waits for combat's end; what the player sees is plain frames over them.
+-- Verbs: apply (settings changed), layout (out of combat), refresh (read the slots), draw (ten times a second).
+-- In combat a slot's totem is secret: its icon goes straight to SetTexture, timers and warnings take the
+-- slot's duration object, and which totem it is comes from our own casts (ns.Totems).
 
 local _, ns = ...
 local W = ns.Widgets
@@ -342,8 +338,7 @@ bar:SetFrameStrata("MEDIUM")
 bar:Hide()
 
 -- The pickers' header: popouts are protected frames it references; buttons carry their index
--- ("sf-pick") and run its open and close snippets. Blizzard's secure hover driver alone can't close
--- a hover picker: it never counts down if the mouse was gone at its first update.
+-- ("sf-pick") and run its open and close snippets
 local picker = CreateFrame("Frame", nil, UIParent, "SecureHandlerBaseTemplate")
 picker:SetAttribute("sf-open", [[
 	local open = ...
@@ -505,7 +500,7 @@ for index, el in ipairs(ELEMENTS) do
 	local s = { el = el, slot = slot, index = index }
 	slots[el], bySlot[slot] = s, s
 
-	-- The click area: right-click dismisses, left-click casts the pick, Alt+click opens the picker; all on the press
+	-- The click area: right-click dismisses, left-click casts the pick (on the press), Alt+click opens the picker
 	local b = CreateFrame("Button", "ShamanForeverTotem" .. NAME[el], bar, "SecureActionButtonTemplate")
 	b:RegisterForClicks("AnyUp", "AnyDown")
 	b:SetAttribute("pressAndHoldAction", true)
