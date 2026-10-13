@@ -1,6 +1,6 @@
 -- Tremor warning
--- A mob whose identity is secret (as expected in instances) is never matched.
--- Earth slot unknown after a login or /reload in combat: nothing warns until it can be read.
+-- A mob whose identity the game hides (a map restriction) is never matched.
+-- After a /reload in combat the earth slot's totem is unknown: nothing warns until it can be read.
 
 local _, ns = ...
 local P = ns.Profiles
