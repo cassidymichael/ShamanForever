@@ -37,7 +37,7 @@ local BUFF_TOTEMS = {
 }
 
 -- Known to give their buff: their marks never wait to see it (any rank)
-local PROVEN = { 8075, 8071, 5394 }
+local PROVEN = { 8075, 8071, 5394, 5675 }
 -- Labelled experimental
 local UNTESTED = { 8227, 8512, 16190 }
 -- The main-hand imbue that cancels your own benefit from a totem (any rank)
