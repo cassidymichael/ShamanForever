@@ -48,8 +48,7 @@ ns.CLASS = {
 	power = { name = "No mana", on = "Show when short of mana" },
 }
 
--- The default layout: an example more than a plan (players make their own groups). Offsets are in
--- each group's scaled units. Elements not learned yet take no room.
+-- The default layout. Offsets are in each group's scaled units; elements not learned take no room.
 ns.CLASS.layout = {
 	{ id = 1, name = "Main", point = "CENTER", x = 0, y = -216, scale = 1, alpha = 0.8,
 		orientation = "horizontal", growth = "forward", spacing = 2,
@@ -201,7 +200,7 @@ ns.THEME = {
 		.. "air spins, spirit gathers.",
 }
 
--- Seed IDs and English names, as _Core's DEFS
+-- Seed IDs and English names, as Core.lua's DEFS
 
 ns.Spells.add({
 	lightningShield = { ids = { 324, 325, 905, 945, 8134, 10431, 10432 }, en = "Lightning Shield" },
@@ -225,7 +224,7 @@ ns.Spells.add({
 	tremor          = { ids = { 8143 }, en = "Tremor Totem" },   -- level 18
 	curePoison      = { ids = { 526 }, en = "Cure Poison" },   -- level 16
 	cureDisease     = { ids = { 2870 }, en = "Cure Disease" },   -- level 22
-	-- Talents and higher-level spells: seeds from foreverdiff.com, found on the client with the right name
+	-- Talents and higher-level spells
 	naturesSwiftness = { ids = { 16188 }, en = "Nature's Swiftness" },   -- the buff has the same ID
 	manaTide        = { ids = { 16190 }, en = "Mana Tide Totem" },
 	grounding       = { ids = { 8177 }, en = "Grounding Totem" },
@@ -235,12 +234,11 @@ ns.Spells.add({
 	lavaBurst       = { ids = { 408490, 1238299, 1238300 }, en = "Lava Burst" },   -- Forever's own, ranks 1 to 3
 	totemicProjection = { ids = { 437009 }, en = "Totemic Projection" },
 	reincarnation   = { ids = { 20608 }, en = "Reincarnation" },
-	waterWalking    = { ids = { 546 }, en = "Water Walking" },   -- the buffs have the same IDs
+	waterWalking    = { ids = { 546 }, en = "Water Walking" },   -- the buff has the same ID
 	waterBreathing  = { ids = { 131 }, en = "Water Breathing" },
 	elementalFocus  = { ids = { 16164 }, en = "Elemental Focus" },   -- a passive talent
 	clearcasting    = { ids = { 16246 }, en = "Clearcasting" },   -- its buff
-	-- Maelstrom Weapon's buff has the talent's name, so it stays out of this map (two keys with one
-	-- name make the name lookup file a new ID under either); Maelstrom.lua tracks it by ID
+	-- Its buff shares the talent's name, so ShamanForever_Maelstrom.lua keeps the buff's ID out of this map
 	maelstromWeapon = { ids = { 408498 }, en = "Maelstrom Weapon" },
 	-- Talents whose buff has the talent's name: the buff is matched by ID
 	flurry          = { ids = { 16256 }, en = "Flurry" },
