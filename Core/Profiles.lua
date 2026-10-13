@@ -46,10 +46,10 @@ local SHARE_VERSION = 9
 --             buffBar, marks); an element declares just the ones it has, for the Idle block
 -- grey, ring, fade, tint and glow are the looks a state shows; pop and sound play once, as it
 -- starts: warn.pop and warn.sound as the warning begins (a buff lost). A bar's own settings use the
--- same tables (expire, ended, killed, mana). The effect and pop kind names (warning, ranout, expired,
--- killed, primed, ready and a class's own) are a separate runtime set.
+-- same tables (expire, ended, killed, mana). The pop kinds (ns.StyleArt.POP_KINDS: ready, expired, lost,
+-- killed, blocked, reset and a class's own) are a separate runtime set.
 
--- Renamed settings, moved as a profile loads or is imported. Drop after launch.
+-- Renamed settings, moved as a profile loads or is imported.
 -- root: a profile key -> element, name, field; element: within any element's settings, name (or
 -- "name.field") -> name, field; totemBar: the same within the totem bar's. In order: a later one wins
 -- where two land in one place.
@@ -116,7 +116,7 @@ local RENAMED = {
 }
 
 -- Retired settings, dropped or converted as a profile loads or is imported (account and folds: as the account
--- loads). Drop after launch, with RENAMED, retireGroups, retireTotemBar, retireStyles, retireOwnLooks,
+-- loads). One settings upgrade with RENAMED, retireGroups, retireTotemBar, retireStyles, retireOwnLooks,
 -- retireSounds, the values and fields loops in P.migrate, and keepOldDefaults with the account's defaultsVersion.
 local RETIRED = {
 	-- Profile keys from before styles
@@ -329,8 +329,8 @@ end
 local function acct() return P.getAccount() end
 
 -- Characters
--- GetNormalizedRealmName isn't ready at load: built from GetRealmName. nil until the game knows
--- the character (a cold start reads "Unknown").
+-- GetNormalizedRealmName isn't ready at load: built from GetRealmName. nil while the name reads
+-- "Unknown" (the game doesn't know the character yet).
 local UNKNOWN = _G.UNKNOWNOBJECT or "Unknown"
 local function charKey()
 	local name, realm = UnitName("player"), GetRealmName()
@@ -593,7 +593,7 @@ end
 
 local function cleanProfile(t)
 	local DEFAULTS, GROUP_DEFAULTS = P.DEFAULTS, ns.Groups.DEFAULTS
-	P.migrate(t)   -- renamed and retired settings: drop after launch
+	P.migrate(t)   -- renamed and retired settings
 	local out = {}
 	for k, default in pairs(DEFAULTS) do
 		if type(t[k]) == type(default) then out[k] = t[k] end
