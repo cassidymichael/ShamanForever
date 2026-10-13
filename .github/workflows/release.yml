@@ -15,11 +15,8 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      # The release notes (GitHub release body and CurseForge changelog) are one CHANGELOG.md
-      # section only, so the download isn't buried under every earlier version. A release tag
-      # (v1.2.0) takes its own "## 1.2.0 (date)" section. A beta tag (v1.2.0-beta.1) takes
-      # "## Unreleased", the changes since the last release, under a line saying it's a test
-      # build. Any other tag stops the run here, before anything is uploaded.
+      # The notes are one CHANGELOG.md section: a release tag (v1.2.0) its "## 1.2.0 (date)", a beta tag
+      # (v1.2.0-beta.1) "## Unreleased" under a test-build line. Any other tag stops here, before any upload.
       - name: Release notes
         run: |
           version="${GITHUB_REF_NAME#v}"
@@ -44,24 +41,18 @@ jobs:
         uses: BigWigsMods/packager@v2
         env:
           GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
-          # CurseForge project 1706929 (## X-Curse-Project-ID in the TOC).
-          # The project's own "Automatic Packaging" is disabled on purpose: it also
-          # fires on new tags, so leaving it on would put two files on every release.
+          # CurseForge's own Automatic Packaging is off: it also fires on tags, giving each release two files.
           CF_API_KEY: ${{ secrets.CF_API_KEY }}
-          # Wago project rN4rkrKD (## X-Wago-ID in the TOC).
           # WoWInterface has no Forever category, so the addon isn't published there.
           WAGO_API_TOKEN: ${{ secrets.WAGO_API_TOKEN }}
-      # Posts the same notes to the Discord server's #announcements, through the webhook in the
-      # DISCORD_WEBHOOK_URL secret, with pings off. Release tags only: betas are not announced.
-      # The release is out by now, so a failed post only warns: post it by hand.
+      # To #announcements, release tags only, pings off. The release is out by now, so a failed post only warns.
       - name: Announce on Discord
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: |
           [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Beta: not announced"; exit 0; }
           release="https://github.com/$GITHUB_REPOSITORY/releases/tag/$GITHUB_REF_NAME"
-          # The notes without their "## X.Y.Z (date)" heading (the title has it) or the
-          # "Earlier versions" line.
+          # The notes without their heading (the title has it) or the "Earlier versions" line
           notes=$(sed -e '1d' -e '/^Earlier versions: /d' RELEASE_NOTES.md | sed '/./,$!d')
           jq -n --arg title "ShamanForever ${GITHUB_REF_NAME#v} is out" --arg url "$release" --arg notes "$notes" '{
             allowed_mentions: {parse: []},
