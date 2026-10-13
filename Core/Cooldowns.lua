@@ -383,8 +383,8 @@ local function turn(f, r)
 end
 local function noteReady(f, st, inEvent)
 	local r = f.ready
-	-- Ready begins in the event whose read says only a GCD stands in the way
-	if st == "gcd" and inEvent and r.armed and not r.by and GetTime() - r.armedAt > TURN_AFTER_ARM
+	-- Ready begins in the event whose read says only a GCD, or nothing, stands in the way
+	if (st == "gcd" or st == "ready") and inEvent and r.armed and not r.by and GetTime() - r.armedAt > TURN_AFTER_ARM
 		and f.ownCd:IsShown() and not (ns.zoning() or ns.cantAct()) then
 		turn(f, r)
 	elseif st == "ready" then
