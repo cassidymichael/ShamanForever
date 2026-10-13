@@ -88,7 +88,7 @@ ns.registerPart("readyGlow", { defaults = { ready = { glow = false }, idleKeep =
 	idle = { keep = { "ready", "Ready glow", GLOW_ONLY } }, preview = { keeps = { ready = "ready" } } })
 -- reset = { talent }: a Reset event (that talent ends the cooldown early), and its ready then. Its pop
 -- and sound take Ready's place; its pop has its own shipped style (resetpop); its text is the player's
--- words by the icon for a set time, in W.WORD's look
+-- words by the icon for a set time, styled by W.WORD's settings
 local RESET_POP = { colorBy = "event", flash = "edge", burst = "both", motion = "bounce", size = 1.8, speed = 1,
 	reach = 1.3 }
 local RESET_WORDS, RESET_WORDS_MAX, WORD_FADE = "Reset!", 24, 0.2

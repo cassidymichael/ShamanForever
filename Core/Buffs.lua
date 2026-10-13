@@ -184,7 +184,7 @@ ns.registerPart("charges", {
 
 -- Expiring drawn by the engine on an aura button, set out of combat: an invisible driver bar's fill end
 -- splits the time bar at the threshold, the time bar clipped before it and an Expiring-coloured twin after
--- it; and a red countdown. x holds its frames and lengthOff; def its settings
+-- it, so no spot is drawn twice; and a red countdown. x holds its frames and lengthOff; def its settings
 local EXPIRE_FAST = 240   -- the driver's fill end crosses the time bar in a 240th of the aura's length
 local EXPIRE_RED = { 1, 0.2, 0.2, 1 }
 local REMAINING = Enum and Enum.DurationTextBindingProperty and Enum.DurationTextBindingProperty.RemainingDuration or 0
