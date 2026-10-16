@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.16.1 (2026-10-16)
+
+- Effects tied to a cooldown becoming Ready (pops and sounds) now play once it will be ready by the end of the current GCD (effectively ready) rather than when *actually* ready.
+- Various small fixes and improvements.
+
 ## 0.16.0 (2026-10-12)
 
 - Idle now fades the whole element: its glows, marks and bars too. "Keep these parts at full
