@@ -63,6 +63,8 @@ ns.CLASS.cooldowns = {
 		blurb = "Cooldown.", readyGlow = true, cd = 6, defaults = { ready = { pop = false } },
 		experimental = "Chain Lightning" },
 	-- Others
+	auraBuff({ key = "elementalmastery", spellKey = "elementalMastery", icon = 136115, auraState = { length = 15 },
+		school = "fire", cd = 180, experimental = "Elemental Mastery" }),
 	auraBuff({ key = "farseer", spellKey = "rageOfTheFarseer", icon = 136048, auraState = { length = 25 },
 		school = "air", cd = 180, experimental = "Rage of the Farseer" }),
 	{ key = "projection", power = true, spellKey = "totemicProjection", icon = 136099, school = "spirit",

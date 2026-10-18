@@ -65,7 +65,7 @@ ns.CLASS.layout = {
 		members = { "elementalfocus", "maelstrom", "flurry", "improvedstormstrike" } },
 	{ id = 6, name = "Cooldowns", point = "CENTER", x = -526, y = -60, scale = 1, alpha = 0.8,
 		orientation = "vertical", growth = "forward", spacing = 2,
-		members = { "naturesswiftness", "manatide", "farseer" } },
+		members = { "naturesswiftness", "elementalmastery", "manatide", "farseer" } },
 	{ id = 7, name = "Target", point = "CENTER", x = 148, y = -153, scale = 1, alpha = 0.8,
 		sizeFollow = false, size = 38,
 		orientation = "horizontal", growth = "forward", spacing = 2, members = { "flameshock", "purge" } },
@@ -225,6 +225,7 @@ ns.Spells.add({
 	curePoison      = { ids = { 526 }, en = "Cure Poison" },   -- level 16
 	cureDisease     = { ids = { 2870 }, en = "Cure Disease" },   -- level 22
 	naturesSwiftness = { ids = { 16188 }, en = "Nature's Swiftness" },   -- the buff has the same ID
+	elementalMastery = { ids = { 16166 }, en = "Elemental Mastery" },   -- the buff has the same ID
 	manaTide        = { ids = { 16190 }, en = "Mana Tide Totem" },
 	grounding       = { ids = { 8177 }, en = "Grounding Totem" },
 	stormstrike     = { ids = { 17364 }, en = "Stormstrike" },   -- its debuff has the same ID
