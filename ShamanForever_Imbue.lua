@@ -88,13 +88,23 @@ local function readMainHand()
 	return false
 end
 
+local CLASS_WEAPON, SUBCLASS_FISHING_POLE = 2, 20
+
 -- nil with no weapon, false when it can't be read
 local function mainHandItem()
 	local ok, id = ns.safe(GetInventoryItemID, "player", MAIN_HAND_SLOT)
 	if not ok or isSecret(id) then return false end
 	return id
 end
-local function hasWeapon() return mainHandItem() ~= nil end
+local function canImbue(item)
+	if item == false then return true end
+	if item == nil then return false end
+	if not (C_Item and C_Item.GetItemInfoInstant) then return true end
+	local ok, _, _, _, _, _, class, subclass = ns.safe(C_Item.GetItemInfoInstant, item)
+	if not ok or type(class) ~= "number" or isSecret(class) or isSecret(subclass) then return true end
+	return class == CLASS_WEAPON and subclass ~= SUBCLASS_FISHING_POLE
+end
+local function hasWeapon() return canImbue(mainHandItem()) end
 
 local function imbueKeyFor(w)
 	local key = P.getAccount().imbueIDs[w.enchantID] or imbueByID[w.enchantID]
@@ -150,8 +160,9 @@ local function drawImbue(now, quiet)
 		drawnIcon = imbueIcon
 		CS.reread("imbue")
 	end
+	local bare = imbueState.bare
 	local grey, tint, ring, fade, glow = W.warnParts("imbue", "warn")
-	local warns = missing and not quiet
+	local warns = missing and not quiet and not bare
 	local lowGlow = showTime and not unreadable and not quiet and own("expire", "glow")
 	imbue:SetWarnParts(missing and grey, warns and tint, warns and ring, warns and fade,
 		(warns and glow) or lowGlow)
@@ -170,7 +181,7 @@ local function drawImbue(now, quiet)
 	-- Idle fades by alpha, not Hide (keeps its place)
 	local when = E.idleWhen("imbue")
 	local idle = P.getAccount().locked and on and (when == "on" or (when == "notlow" and not showTime))
-	E.fade("imbue", idle and E.idleAlpha("imbue") or 1)
+	E.fade("imbue", (P.getAccount().locked and bare) and 0 or (idle and E.idleAlpha("imbue") or 1))
 end
 
 local function drawNotLearned()
@@ -198,6 +209,7 @@ function IM.refresh()
 	local had = imbueState.on
 	imbueState.unreadable = r == nil
 	imbueState.on = r and true or r
+	imbueState.bare = not r and not canImbue(item)
 	imbueState.key, imbueState.expiresAt = nil, nil
 	if r == nil then
 		imbueState.read = "unreadable" .. (InCombatLockdown() and " (in combat)" or "")
@@ -220,7 +232,7 @@ function IM.refresh()
 		imbueState.expiresAt = r.timeLeft > 0 and now + left or nil
 		if key then acct.imbueLast = key end
 	end
-	-- No weapon still warns, but a weapon taken off keeps its imbue: no lost pop for a changed weapon
+	-- A weapon taken off keeps its imbue: no lost pop for a changed weapon
 	local quiet = ns.cantAct()
 	drawImbue(now, quiet)
 	if had and r == false and not quiet and now - imbueState.itemAt >= 1 then
