@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.16.2 (2026-10-19)
+
+- New: Elemental Mastery tracker element (experimental), 31-point Elemental talent added in latest patch.
+- Improvement: Weapon Imbue element no longer warns about missing imbue when the shaman has a fishing pole equipped.
+
 ## 0.16.1 (2026-10-16)
 
 - Effects tied to a cooldown becoming Ready (pops and sounds) now play once it will be ready by the end of the current GCD (effectively ready) rather than when *actually* ready.
