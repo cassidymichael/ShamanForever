@@ -454,8 +454,7 @@ end
 -- snippets can show and hide it in combat), a catch button and a hover strip
 local function makePicker(s, name)
 	local ar = CreateFrame("Button", nil, bar, "SecureActionButtonTemplate")
-	-- Above every open picker's catch button, so another slot's arrow opens in one click
-	ar:SetFrameStrata("HIGH")
+	-- The bar's strata, so Blizzard's windows cover it; its level is above the catch button's
 	ar:RegisterForClicks("AnyUp")
 	ar:SetAttribute("sf-pick", s.index)
 	wrapClick(ar, ARROW_CLICK)
@@ -479,6 +478,7 @@ local function makePicker(s, name)
 	-- Catch button: screen-wide, under the pickers, closes an open one
 	local catch = CreateFrame("Button", nil, pop, "SecureActionButtonTemplate")
 	catch:SetAllPoints(UIParent)
+	catch:SetFrameStrata("MEDIUM")
 	catch:SetFrameLevel(pop:GetFrameLevel() + 1)
 	catch:RegisterForClicks("AnyUp")
 	catch:SetAttribute("sf-pick", s.index)
