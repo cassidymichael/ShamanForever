@@ -471,14 +471,14 @@ local function makePicker(s, name)
 	pop.bg = pop:CreateTexture(nil, "BACKGROUND")
 	pop.bg:SetAllPoints()
 	pop.bg:SetColorTexture(TB.POP_FILL[1], TB.POP_FILL[2], TB.POP_FILL[3], TB.POP_FILL[4])
-	pop:SetFrameStrata("HIGH")
+	-- Under every window whatever its level; the arrows (the bar's strata) stay above the catch button
+	pop:SetFrameStrata("LOW")
 	pop.buttons = {}
 	s.popout = pop
 	SecureHandlerSetFrameRef(picker, "pop" .. s.index, pop)
 	-- Catch button: screen-wide, under the pickers, closes an open one
 	local catch = CreateFrame("Button", nil, pop, "SecureActionButtonTemplate")
 	catch:SetAllPoints(UIParent)
-	catch:SetFrameStrata("MEDIUM")
 	catch:SetFrameLevel(pop:GetFrameLevel() + 1)
 	catch:RegisterForClicks("AnyUp")
 	catch:SetAttribute("sf-pick", s.index)
