@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.16.3 (2026-10-21)
+
+- Fixed the totem bar's arrows and pickers sometimes drawing over other UI windows and getting in the way of clicks.
+- Added option to place a totem directly from the totem picker if holding a modifier. Enabled by default, with Shift modifier. Clicking without the modifier picks the totem as that slot's chosen totem as usual.
+
 ## 0.16.2 (2026-10-19)
 
 - New: Elemental Mastery tracker element (experimental), 31-point Elemental talent added in latest patch.
