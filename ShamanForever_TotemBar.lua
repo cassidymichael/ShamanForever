@@ -79,6 +79,7 @@ TB.DEFAULTS = {
 	rangeGap = 3,   -- beside: from what's inside it
 	rangeOrder = "after",   -- beside: the mark after (past) the time bar, or before it
 	pickHover = true,
+	dropWith = "shift",   -- shift | alt | ctrl | off: the key that makes a click in a picker drop the totem
 	skin = "default",
 	pixelTray = true,
 	pixelEdge = 1,
@@ -106,7 +107,7 @@ TB.RANGES = RANGES
 local CHOICES = { mode = { "blizzard", "active", "everything" }, show = { "always", "active", "combat", "target" },
 	barPlace = { "in", "out" }, setSwitch = { "popout", "cycle" }, stonePlinth = { "slim", "normal", "grand" },
 	rangeShow = { "out", "both" }, rangeShape = { "strip", "dot" }, rangePlace = { "in", "out" },
-	rangeOrder = { "after", "before" } }
+	rangeOrder = { "after", "before" }, dropWith = { "shift", "alt", "ctrl", "off" } }
 local function clamp(v, r) return math.min(math.max(v, r[1]), r[2]) end
 
 local EXPIRE_OVER = { earthbind = 5, stoneclaw = 5, manaTide = 3 }
@@ -1091,6 +1092,8 @@ local function placePicker(pop, b, n, size, psz)
 	if dir == "up" or dir == "down" then strip:SetWidth(across) else strip:SetHeight(across) end
 end
 
+local DROP_KEY = { shift = "shift-", alt = "alt-", ctrl = "ctrl-" }
+
 local function layoutPopout(s, size, known)
 	local pop = s.popout
 	local slot = s.slot
@@ -1129,6 +1132,9 @@ local function layoutPopout(s, size, known)
 		p.spellID = id
 		followSlot(p, slot)
 		p:SetAttribute("spell", id)
+		-- The drop key's click casts the totem and leaves the pick; No totem has no cast
+		for _, key in pairs(DROP_KEY) do p:SetAttribute(key .. "type1", nil) end
+		if DROP_KEY[cfg().dropWith] and id ~= 0 then p:SetAttribute(DROP_KEY[cfg().dropWith] .. "type1", "spell") end
 		TB.placePopButton(p, pop, i, psz)
 		if id ~= 0 then
 			p.icon:SetTexture(C_Spell.GetSpellTexture(id))

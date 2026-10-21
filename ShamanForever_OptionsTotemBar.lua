@@ -492,6 +492,17 @@ local function build(p)
 	end)
 	p:checkbox("Open pickers on hover", "Hovering a slot opens its totems. Works in combat.",
 		tget("pickHover"), tset("pickHover"))
+	local DROP = "Drop with"
+	own("dropWith", { label = DROP, reset = function() return TB.setButtonSetting("dropWith", TB.DEFAULTS.dropWith) end })
+	p:dropdown(DROP, "Click a totem in a picker with this key held to drop it. Your pick stays.",
+		{ { "shift", "Shift" }, { "alt", "Alt" }, { "ctrl", "Ctrl" }, { "off", "Off" } }, tget("dropWith"),
+		function(v)
+			if TB.setButtonSetting("dropWith", v) then changed()
+			else
+				ns.say("totem bar changes wait until combat ends")
+				ns.Options.refresh()
+			end
+		end, nil, 140)
 	p:checkbox(ns.Spells.name("call"), nil, tget("call"), tset("call"))
 	p:checkbox(ns.Spells.name("recall"), nil, tget("recall"), tset("recall"))
 	p:text(function()
