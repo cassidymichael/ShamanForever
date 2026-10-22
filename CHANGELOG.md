@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.16.4 (2026-10-23)
+
+- New: a note on Home and About introducing InterHUD, ShamanForever's successor for every class (Home opens once to show it).
+- Minor fixes and improvements.
+
 ## 0.16.3 (2026-10-21)
 
 - Fixed the totem bar's arrows and pickers sometimes drawing over other UI windows and getting in the way of clicks.
