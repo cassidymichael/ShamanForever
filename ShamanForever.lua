@@ -1235,6 +1235,7 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 		end
 		ns.try("spell self-check", Spells.selfCheck)
 		ns.applyMinimapButton()
+		ns.Options.showSuccessorOnce()
 		reg("UNIT_SPELLCAST_SUCCEEDED", "player")
 		reg("SPELL_UPDATE_COOLDOWN")
 		reg("SPELLS_CHANGED")

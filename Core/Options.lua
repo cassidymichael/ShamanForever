@@ -107,8 +107,92 @@ local function addonVersion()
 	return getMeta and getMeta(ADDON, "Version") or "?"
 end
 
+-- InterHUD, the successor addon: a parchment note on Home (dismissable) and About
+local INTERHUD_URL = "https://www.curseforge.com/wow/addons/interhud"
+local SUCCESSOR_TITLE = "Meet InterHUD, ShamanForever's successor"
+local SUCCESSOR = "It works for every class, has more features and is more powerful, though for now a bit harder to "
+	.. "use. It isn't at feature parity with ShamanForever yet, and there's no way to bring your ShamanForever setup "
+	.. "over yet: both are coming soon. You may want to try it anyway."
+local INK, INK_TITLE, INK_LINK = { 0.29, 0.17, 0.02 }, { 0.16, 0.09, 0 }, { 0.48, 0.23, 0 }
+local PAD, CREST = 22, 64
+local function successor(p, dismissable)
+	local f = CreateFrame("Frame", nil, p.content, "BackdropTemplate")
+	f:SetBackdrop(W.BACKDROP)
+	f:SetBackdropColor(0, 0, 0, 0)
+	f:SetBackdropBorderColor(0.35, 0.24, 0.10, 1)
+	local ground = f:CreateTexture(nil, "BACKGROUND")
+	ground:SetPoint("TOPLEFT", 2, -2)
+	ground:SetPoint("BOTTOMRIGHT", -2, 2)
+	ground:SetTexture(ART .. "Parchment.jpg")
+	for _, at in ipairs({ { "TOPLEFT", 0, 1, 0, 1 }, { "BOTTOMRIGHT", 1, 0, 1, 0 } }) do
+		local c = f:CreateTexture(nil, "ARTWORK")
+		c:SetSize(22, 22)
+		c:SetPoint(at[1], at[1] == "TOPLEFT" and 4 or -4, at[1] == "TOPLEFT" and -4 or 4)
+		c:SetTexture(ART .. "Corner")
+		c:SetTexCoord(at[2], at[3], at[4], at[5])
+		c:SetVertexColor(0.33, 0.20, 0.07, 0.8)
+	end
+	local crest = f:CreateTexture(nil, "ARTWORK")
+	crest:SetSize(CREST, CREST)
+	crest:SetPoint("TOPLEFT", PAD, -PAD + 4)
+	crest:SetTexture(ART .. "InterHUD-Crest.png")
+	local title = f:CreateFontString(nil, "OVERLAY", "QuestTitleFont")
+	title:SetPoint("TOPLEFT", crest, "TOPRIGHT", 14, -4)
+	title:SetJustifyH("LEFT")
+	title:SetShadowOffset(0, 0)
+	title:SetTextColor(unpack(INK_TITLE))
+	title:SetText(SUCCESSOR_TITLE)
+	local text = f:CreateFontString(nil, "OVERLAY", "QuestFont")
+	text:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -8)
+	text:SetJustifyH("LEFT")
+	text:SetSpacing(3)
+	text:SetShadowOffset(0, 0)
+	text:SetTextColor(unpack(INK))
+	text:SetText(SUCCESSOR)
+	local getIt = f:CreateFontString(nil, "OVERLAY", "QuestFont")
+	getIt:SetShadowOffset(0, 0)
+	getIt:SetTextColor(unpack(INK_TITLE))
+	getIt:SetText("On CurseForge:")
+	local box = Page.copyBox(f, INTERHUD_URL, 390)
+	getIt:SetPoint("TOPLEFT", text, "BOTTOMLEFT", 0, -12)
+	box:SetPoint("LEFT", getIt, "RIGHT", 12, 0)
+	if dismissable then
+		local close = CreateFrame("Button", nil, f)
+		close:SetSize(18, 18)
+		close:SetPoint("TOPRIGHT", -10, -10)
+		close.x = close:CreateTexture(nil, "OVERLAY")
+		close.x:SetAllPoints()
+		close.x:SetTexture(ART .. "Close")
+		close.x:SetVertexColor(unpack(INK_LINK))
+		close:SetScript("OnEnter", function() close.x:SetVertexColor(unpack(INK_TITLE)) end)
+		close:SetScript("OnLeave", function() close.x:SetVertexColor(unpack(INK_LINK)) end)
+		close:SetScript("OnClick", function()
+			acct().successorDismissed = true
+			OP.refresh()
+		end)
+		setTip(close, "Dismiss")
+	end
+	local h = 160
+	local shown = dismissable and function() return not acct().successorDismissed end or nil
+	return p:add(f, function() return h + 10 end, shown, function()
+		local w = p:width()
+		local inner = w - PAD * 2 - CREST - 14 - (dismissable and 24 or 0)
+		title:SetWidth(inner)
+		text:SetWidth(inner)
+		box:SetWidth(math.min(390, inner - getIt:GetStringWidth() - 12))
+		h = PAD + 4 + title:GetStringHeight() + 8 + text:GetStringHeight() + 12 + 24 + PAD
+		h = math.max(h, CREST + PAD * 2)
+		f:SetSize(w, h)
+		-- The parchment cropped to the card's shape, never stretched
+		local r = h / w
+		ground:SetTexCoord(0, 1, 0.5 - r / 2, 0.5 + r / 2)
+	end)
+end
+
 local function buildHome(p)
 	p:pin(ns.OptionsArt.buildIntro(win, addonVersion()))
+	successor(p, true)
+	p:add(p:row(8), 8, function() return not acct().successorDismissed end)
 	p:bigButtons({
 		{ "Interface\\Icons\\INV_Misc_Key_03", lockText, lockSub, toggleLock },
 		{ "Interface\\Icons\\Spell_Nature_Invisibilty", function() return "Groups & Layout" end,
@@ -284,6 +368,8 @@ end
 local function buildAbout(p)
 	p:add(p:row(6), 6)
 	aboutCard(p)
+	successor(p, false)
+	p:add(p:row(8), 8)
 	aboutFeedback = flashingHeader(p, "Feedback", "Interface\\Icons\\INV_Letter_15")
 	p:text("Ideas, requests or problems? Post in #feedback on Discord, comment on CurseForge, or open an issue on "
 		.. "GitHub. Click a link, then Ctrl+C to copy.")
@@ -907,6 +993,17 @@ local function showAboutSection(which)
 	local section = which()
 	if not section then return end
 	section.page:scrollTo(section.header, function() section.page:flash(section.header) end)
+end
+-- Home opened once per install, so the successor note is seen
+function OP.showSuccessorOnce()
+	if acct().successorSeen then return end
+	C_Timer.After(5, function()
+		local function show()
+			acct().successorSeen = true
+			OP.open("home")
+		end
+		if not ns.deferInCombat("successor note", show) then show() end
+	end)
 end
 function OP.showExperimental() showAboutSection(function() return aboutExp end) end
 function OP.showFeedback() showAboutSection(function() return aboutFeedback end) end
