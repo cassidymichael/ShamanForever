@@ -1224,7 +1224,6 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 	elseif event == "PLAYER_LOGIN" then
 		local want = P.saved()
 		if want ~= profileName then selectProfile(want) end
-		ns.IssueReporter.apply()
 		if not ns.isClass() then root:Hide(); return end
 		isActive = true
 		-- Off from before a reload or relog: set before anything starts, so nothing shows or plays

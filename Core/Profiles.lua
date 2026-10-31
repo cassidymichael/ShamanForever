@@ -7,7 +7,6 @@ ns.Profiles = P
 -- Account-wide, outside profiles
 local ACCOUNT_DEFAULTS = {
 	locked = true,
-	hideIssueReporter = false,
 	keepOptionsOpen = false,
 	successorSeen = false,
 	successorDismissed = false,
@@ -125,7 +124,7 @@ local RETIRED = {
 	root = { "glowColor", "glowSpeed", "glowLow", "glowWidth", "glowSize", "popMotion", "popSize", "popSpeed",
 		"popFlash", "popRing", "popStar", "popTint" },
 	-- Account keys no longer used
-	account = { "minimalArt", "settingsVersion", "testMode" },
+	account = { "minimalArt", "settingsVersion", "testMode", "hideIssueReporter", "issueReporterPos" },
 	-- Fold keys of pages that no longer fold, and of blocks that were renamed (a page's key, then its title)
 	folds = { "^layout:", ":Frame style$", ":Group frame style$", "^styles:Border look$", "^styles:Element frame$",
 		"^styles:Group frame$", "^totembar:Totems$", "^totembar:Not your pick$", "^purge:Track$",

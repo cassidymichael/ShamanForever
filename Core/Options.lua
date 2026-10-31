@@ -227,13 +227,6 @@ local function buildGlobal(p)
 		.. "addon limitations and go idle at once: those that light up for a buff or debuff, such as procs, "
 		.. "cures, Shields, Maelstrom Weapon, Flame Shock and Purge.")
 	K.soundsBlock(p)
-	local hasReporter = ns.IssueReporter.has
-	p:header("Beta", hasReporter)
-	p:checkbox("Hide the Issue Reporter button",
-		"Blizzard's beta Issue Reporter button. " .. ns.NAME .. " also remembers where you drag it.",
-		function() return acct().hideIssueReporter end,
-		function(v) acct().hideIssueReporter = v; ns.IssueReporter.apply() end, hasReporter)
-
 	p:section("Global styles")
 	p:text("These apply to all components within the addon, which can be overridden within each component's settings.")
 	p:header("Icon size")

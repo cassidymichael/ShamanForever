@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Removed the beta's Issue Reporter option.
+
 ## 0.16.4 (2026-10-23)
 
 - New: a note on Home and About introducing InterHUD, ShamanForever's successor for every class (Home opens once to show it).
