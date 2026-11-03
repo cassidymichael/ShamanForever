@@ -118,6 +118,8 @@ read_globals = {
     "PlaySoundFile",
     "PlayerBottomManagedFrameContainer",
     "PlayerFrame",
+    "QuestFont",
+    "QuestTitleFont",
     "QuickKeybindFrame",
     "QuickKeybindTooltip",
     "RaidFrame",
@@ -177,7 +179,6 @@ read_globals = {
     "pairs",
     "pcall",
     "print",
-    "random",
     "rawset",
     "securecallfunction",
     "select",
@@ -195,4 +196,4 @@ read_globals = {
     "wipe",
     "xpcall",
 }
-globals = { "SlashCmdList", "StaticPopupDialogs", "UISpecialFrames", "Blizzard_PTRIssueReporter_Saved" }
+globals = { "SlashCmdList", "StaticPopupDialogs", "UISpecialFrames" }
