@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.16.5 (2026-11-03)
 
 - Lava Burst element removed (removed from the game). Totemic Projection and Elemental Mastery now show as their new names, Totemic Call and Lightning Mastery.
 - Removed the beta's Issue Reporter option.
