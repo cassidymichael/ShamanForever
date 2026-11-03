@@ -52,7 +52,7 @@ ns.CLASS = {
 ns.CLASS.layout = {
 	{ id = 1, name = "Main", point = "CENTER", x = 0, y = -216, scale = 1, alpha = 0.8,
 		orientation = "horizontal", growth = "forward", spacing = 2,
-		members = { "shield", "shock", "firenova", "stormstrike", "lavaburst", "chainlightning", "riptide" } },
+		members = { "shield", "shock", "firenova", "stormstrike", "chainlightning", "riptide" } },
 	{ id = 2, name = "Imbue", point = "CENTER", x = 0, y = 58 / 1.25, scale = 1.25, alpha = 0.9,
 		orientation = "horizontal", growth = "forward", spacing = 2, members = { "imbue" } },
 	{ id = 3, name = "Totems", point = "CENTER", x = -144, y = -153, scale = 1, alpha = 0.8,
@@ -225,14 +225,13 @@ ns.Spells.add({
 	curePoison      = { ids = { 526 }, en = "Cure Poison" },   -- level 16
 	cureDisease     = { ids = { 2870 }, en = "Cure Disease" },   -- level 22
 	naturesSwiftness = { ids = { 16188 }, en = "Nature's Swiftness" },   -- the buff has the same ID
-	elementalMastery = { ids = { 16166 }, en = "Elemental Mastery" },   -- the buff has the same ID
+	elementalMastery = { ids = { 16166 }, en = "Lightning Mastery" },   -- the buff has the same ID
 	manaTide        = { ids = { 16190 }, en = "Mana Tide Totem" },
 	grounding       = { ids = { 8177 }, en = "Grounding Totem" },
 	stormstrike     = { ids = { 17364 }, en = "Stormstrike" },   -- its debuff has the same ID
 	riptide         = { ids = { 408521, 1239242, 1239243 }, en = "Riptide" },   -- Forever's own, ranks 1 to 3
 	rageOfTheFarseer = { ids = { 425336 }, en = "Rage of the Farseer" },   -- Forever's own
-	lavaBurst       = { ids = { 408490, 1238299, 1238300 }, en = "Lava Burst" },   -- Forever's own, ranks 1 to 3
-	totemicProjection = { ids = { 437009 }, en = "Totemic Projection" },
+	totemicProjection = { ids = { 437009 }, en = "Totemic Call" },
 	reincarnation   = { ids = { 20608 }, en = "Reincarnation" },
 	waterWalking    = { ids = { 546 }, en = "Water Walking" },   -- the buff has the same ID
 	waterBreathing  = { ids = { 131 }, en = "Water Breathing" },

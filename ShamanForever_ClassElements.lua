@@ -57,14 +57,12 @@ ns.CLASS.cooldowns = {
 	{ key = "riptide", power = true, spellKey = "riptide", icon = 252995, school = "water", blurb = "Cooldown.",
 		readyGlow = true, cd = 6, experimental = "Riptide" },
 	-- Short cooldowns: no Ready pop by default
-	{ key = "lavaburst", power = true, range = true, spellKey = "lavaBurst", icon = 237582, school = "fire",
-		blurb = "Cooldown.", readyGlow = true, cd = 10, defaults = { ready = { pop = false } }, experimental = "Lava Burst" },
 	{ key = "chainlightning", power = true, range = true, spellKey = "chainLightning", icon = 136015, school = "air",
 		blurb = "Cooldown.", readyGlow = true, cd = 6, defaults = { ready = { pop = false } },
 		experimental = "Chain Lightning" },
 	-- Others
 	auraBuff({ key = "elementalmastery", spellKey = "elementalMastery", icon = 136115, auraState = { length = 15 },
-		school = "fire", cd = 180, experimental = "Elemental Mastery" }),
+		school = "fire", cd = 180, experimental = "Lightning Mastery" }),
 	auraBuff({ key = "farseer", spellKey = "rageOfTheFarseer", icon = 136048, auraState = { length = 25 },
 		school = "air", cd = 180, experimental = "Rage of the Farseer" }),
 	{ key = "projection", power = true, spellKey = "totemicProjection", icon = 136099, school = "spirit",
