@@ -75,7 +75,7 @@ ns.CLASS.layout = {
 		members = { "waterbreathing", "waterwalking" } },
 	{ id = 9, name = "Reincarnation", point = "CENTER", x = -590, y = -260, scale = 1, alpha = 0.6,
 		orientation = "horizontal", growth = "forward", spacing = 2, members = { "reincarnation" } },
-	{ id = 10, name = "Totemic Projection", point = "CENTER", x = -526, y = -180, scale = 1, alpha = 0.6,
+	{ id = 10, name = "Totemic Call", point = "CENTER", x = -526, y = -180, scale = 1, alpha = 0.6,
 		sizeFollow = false, size = 40,
 		orientation = "horizontal", growth = "forward", spacing = 2, members = { "projection" } },
 	-- Racials: only the player's race shows
