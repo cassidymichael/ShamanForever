@@ -112,7 +112,6 @@ read_globals = {
     "MultiCastActionBarFrame",
     "NOT_BOUND",
     "PRESS_KEY_TO_BIND",
-    "PTR_IssueReporter",
     "PetFrame",
     "PlaySound",
     "PlaySoundFile",
