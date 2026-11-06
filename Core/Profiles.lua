@@ -9,7 +9,8 @@ local ACCOUNT_DEFAULTS = {
 	locked = true,
 	keepOptionsOpen = false,
 	successorSeen = false,
-	successorDismissed = false,
+	-- The note says the import is here: shown again to those who dismissed the one before it
+	importNoteDismissed = false,
 	foldedBlocks = {},
 	profiles = {},
 	chars = {},
@@ -386,6 +387,7 @@ function P.load()
 	local a = _G[SAVED] or {}
 	_G[SAVED] = a
 	if type(a.profiles) ~= "table" then wipe(a) end
+	a.successorDismissed = nil
 	P.fillDefaults(a, ACCOUNT_DEFAULTS)
 	for k, v in pairs(ACCOUNT_DEFAULTS) do
 		if type(a[k]) ~= type(v) then a[k] = type(v) == "table" and CopyTable(v) or v end

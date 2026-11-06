@@ -111,8 +111,9 @@ end
 local INTERHUD_URL = "https://www.curseforge.com/wow/addons/interhud"
 local SUCCESSOR_TITLE = "Meet InterHUD, ShamanForever's successor"
 local SUCCESSOR = "It works for every class, has more features and is more powerful, though for now a bit harder to "
-	.. "use. It isn't at feature parity with ShamanForever yet, and there's no way to bring your ShamanForever setup "
-	.. "over yet: both are coming soon. You may want to try it anyway."
+	.. "use. It isn't at feature parity with ShamanForever yet, but you can bring your setup over: on ShamanForever's "
+	.. "Profiles page, press \"Export\" and copy the text, then paste it into InterHUD's Profiles & sharing page, on "
+	.. "its Import tab. Not everything carries over yet, so check the result and adjust anything that's missing."
 local INK, INK_TITLE, INK_LINK = { 0.29, 0.17, 0.02 }, { 0.16, 0.09, 0 }, { 0.48, 0.23, 0 }
 local PAD, CREST = 22, 64
 local function successor(p, dismissable)
@@ -167,13 +168,13 @@ local function successor(p, dismissable)
 		close:SetScript("OnEnter", function() close.x:SetVertexColor(unpack(INK_TITLE)) end)
 		close:SetScript("OnLeave", function() close.x:SetVertexColor(unpack(INK_LINK)) end)
 		close:SetScript("OnClick", function()
-			acct().successorDismissed = true
+			acct().importNoteDismissed = true
 			OP.refresh()
 		end)
 		setTip(close, "Dismiss")
 	end
 	local h = 160
-	local shown = dismissable and function() return not acct().successorDismissed end or nil
+	local shown = dismissable and function() return not acct().importNoteDismissed end or nil
 	return p:add(f, function() return h + 10 end, shown, function()
 		local w = p:width()
 		local inner = w - PAD * 2 - CREST - 14 - (dismissable and 24 or 0)
@@ -192,7 +193,7 @@ end
 local function buildHome(p)
 	p:pin(ns.OptionsArt.buildIntro(win, addonVersion()))
 	successor(p, true)
-	p:add(p:row(8), 8, function() return not acct().successorDismissed end)
+	p:add(p:row(8), 8, function() return not acct().importNoteDismissed end)
 	p:bigButtons({
 		{ "Interface\\Icons\\INV_Misc_Key_03", lockText, lockSub, toggleLock },
 		{ "Interface\\Icons\\Spell_Nature_Invisibilty", function() return "Groups & Layout" end,
