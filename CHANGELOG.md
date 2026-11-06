@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Updated to support launch build spell data changes.
 - The InterHUD note on Home now says how to bring your setup over to InterHUD.
 
 ## 0.16.5 (2026-11-03)
