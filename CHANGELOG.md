@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Totem bar: out of range can now grey out the whole totem icon, on its own or with the strip or dot.
+
 ## 0.16.6 (2026-11-06)
 
 - Updated to support launch build spell data changes.
