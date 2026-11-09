@@ -193,17 +193,19 @@ PREVIEW = {
 				-- Out of range as the bar draws it: on the first slot whose pick buffs you (or has none); in
 				-- range on the others like it, while that's on
 				local pickID = st == "range" and c.range and TB.pickSpell(el)
-				if st == "range" and c.range and (not marked or c.rangeShow == "both")
+				if st == "range" and c.range and (not marked or c.rangeShow == "both" and c.rangeShape ~= "none")
 					and (pickID == nil or TB.range.covers(el, pickID)) then
 					local which = marked and "in" or "out"
 					marked = true
 					local f = ic.rangeF
-					local x, y, mw, mh, kind = TB.range.rect(ic, size, o)
-					f:ClearAllPoints()
-					f:SetPoint("TOPLEFT", ic.box, "TOPLEFT", x, y)
-					f:SetSize(mw, mh)
-					TB.range.paint(f, kind, which)
-					f:Show()
+					local u, mark, grey = TB.range.layoutOf(ic, size, o, which)
+					if u then
+						f:ClearAllPoints()
+						f:SetPoint("TOPLEFT", ic.box, "TOPLEFT", u.x, u.y)
+						f:SetSize(u.w, u.h)
+						TB.range.dress(f, u, mark, grey, which, pick or TB.TOTEM_ICON[el], ic.tex)
+						f:Show()
+					end
 				end
 				TB.paintLow(ic, st == "mana" and i == 1 and TB.feat("cast") and c.mana.on == true)
 				if st == "offpick" and i == 1 then
@@ -562,15 +564,20 @@ local function build(p)
 	end
 	local range = p:checkbox("Show", nil, tget("range"), tset("range"))
 	p:sub(range, tget("range"), function()
+		p:checkbox("Greyed icon", "Greys out the whole totem picture while you're out of range, with the mark or without"
+			.. " it.", tget("rangeGrey"), tset("rangeGrey"))
+		local shape = p:dropdown("Shape", nil, { { "strip", "Strip" }, { "dot", "Dot" }, { "none", "None" } },
+			tget("rangeShape"), tset("rangeShape"), nil, 190)
+		local function marked() return c().rangeShape ~= "none" end
 		local marks = p:dropdown("Marks", nil, { { "out", "Out of range only" }, { "both", "Out of range and in range" } },
-			tget("rangeShow"), tset("rangeShow"), nil, 240)
-		p:sub(marks, function() return c().rangeShow == "both" end, function()
+			tget("rangeShow"), tset("rangeShow"), marked, 240)
+		p:sub(marks, function() return marked() and c().rangeShow == "both" end, function()
 			p:color("In range colour", "Colour and opacity.", tget("rangeInColor"), tset("rangeInColor"))
 			p:text("Shows while your own totem's buff is on you.")
 		end)
-		p:color("Colour", "Colour and opacity.", tget("rangeOut"), tset("rangeOut"))
-		local shape = p:dropdown("Shape", nil, { { "strip", "Strip" }, { "dot", "Dot" } }, tget("rangeShape"),
-			tset("rangeShape"), nil, 190)
+		p:sub(shape, marked, function()
+			p:color("Colour", "Colour and opacity.", tget("rangeOut"), tset("rangeOut"))
+		end)
 		p:sub(shape, nil, function()
 			local function is(v) return function() return c().rangeShape == v end end
 			tslider("Bar thickness", "In pixels.", px, "rangeHeight", is("strip"))
@@ -579,8 +586,8 @@ local function build(p)
 			tslider("Y offset", "From its place. It stays inside the icon, or beside it.", px, "rangeDotY", is("dot"))
 		end)
 		local place = p:dropdown("Place", "Beside: on the side away from the pickers.",
-			{ { "in", "In the icon" }, { "out", "Beside the icon" } }, tget("rangePlace"), tset("rangePlace"), nil, 190)
-		p:sub(place, function() return c().rangePlace == "out" end, function()
+			{ { "in", "In the icon" }, { "out", "Beside the icon" } }, tget("rangePlace"), tset("rangePlace"), marked, 190)
+		p:sub(place, function() return marked() and c().rangePlace == "out" end, function()
 			tslider("Distance", "From the icon or the time bar.", px, "rangeGap")
 			p:dropdown("Order", nil, { { "after", "Time bar nearer the icon" }, { "before", "Mark nearer the icon" } },
 				tget("rangeOrder"), tset("rangeOrder"), function() return TB.skin.place("barPlace") == "out"

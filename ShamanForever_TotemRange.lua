@@ -108,7 +108,7 @@ local AWAY_BY = { below = { "rangeDotY", -1 }, above = { "rangeDotY", 1 }, left 
 function RG.band(f, side)
 	if not P.getDB() then return nil end
 	local c = TB.cfg()
-	if not c.range or TB.skin.place("rangePlace") ~= "out" then return nil end
+	if not c.range or c.rangeShape == "none" or TB.skin.place("rangePlace") ~= "out" then return nil end
 	if c.rangeShape ~= "dot" then return c.rangeGap, W.linePx(f, c.rangeHeight) end
 	local a = AWAY_BY[side]
 	return math.max(c.rangeGap + (a and c[a[1]] * a[2] or 0), 0), W.linePx(f, c.rangeDotSize)
@@ -133,9 +133,10 @@ local function besideRect(v, size, inset, c)
 	return size + off, -from, h, w, kind
 end
 
--- The mark's rect, from the slot box's top left
+-- The mark's rect, from the slot box's top left; nil with Shape None
 function RG.rect(v, size, inset)
 	local c = TB.cfg()
+	if c.rangeShape == "none" then return nil end
 	if TB.skin.place("rangePlace") == "out" then return besideRect(v, size, inset, c) end
 	local d = inset + ns.StyleArt.pictureInset(v) + TB.skin.dressInset(v, size - 2 * inset)
 	if c.rangeShape == "dot" then
@@ -152,7 +153,8 @@ end
 local previewOn = false
 local events   -- set(on): UNIT_AURA, while the mark is in use (RG.start)
 
--- A mark: a texture per shape and place, in the picture's shape (v: the slot's look or the header's icon)
+-- A mark: a texture per shape and place, in the picture's shape (v: the slot's look or the header's icon), and the
+-- greyed picture under them
 local function newMark(parent, v, lv)
 	local m = CreateFrame("Frame", nil, parent)
 	m.v = v
@@ -161,6 +163,9 @@ local function newMark(parent, v, lv)
 	m.bg = m:CreateTexture(nil, "ARTWORK")
 	m.bg:SetAllPoints()
 	ns.StyleArt.followMask(v, m.bg)
+	m.grey = m:CreateTexture(nil, "ARTWORK", nil, -8)
+	ns.StyleArt.followMask(v, m.grey)
+	m.grey:Hide()
 	return m
 end
 RG.newMark = newMark
@@ -179,17 +184,82 @@ local function texture(m, kind)
 	return t
 end
 
--- Paints the mark's texture for kind (default: the last); which "in" is the in range colour
+-- Paints the mark's texture for kind (nil: the last; false: none), at m.at inside the mark where set; which "in" is
+-- the in range colour
 function RG.paint(m, kind, which)
-	m.drawn = kind or m.drawn or "strip"
+	if kind == false then m.drawn = false
+	else m.drawn = kind or m.drawn or "strip" end
 	for _, key in ipairs(KINDS) do
 		local t = key == "strip" and m.bg or m[key]
 		if t and key ~= m.drawn then t:Hide() end
 	end
+	if not m.drawn then return end
 	local c = TB.cfg()
 	local t, k = texture(m, m.drawn), which == "in" and c.rangeInColor or c.rangeOut
+	t:ClearAllPoints()
+	if m.at then
+		t:SetPoint("TOPLEFT", m, "TOPLEFT", m.at[1], m.at[2])
+		t:SetSize(m.at[3], m.at[4])
+	else
+		t:SetAllPoints()
+	end
 	t:SetColorTexture(k[1], k[2], k[3], k[4] or 1)
 	t:Show()
+end
+
+-- The picture's rect in the slot box, from its top left
+local function pictureRect(v, size, inset)
+	local d = inset + ns.StyleArt.pictureInset(v) + TB.skin.dressInset(v, size - 2 * inset)
+	return { x = d, y = -d, w = size - 2 * d, h = size - 2 * d }
+end
+
+-- What a mark draws (which: "out" or "in"): its frame's rect from the slot box's top left, the mark's rect and kind
+-- (nil with Shape None) and the greyed picture's (Greyed icon, out of range only); nil where it draws nothing
+function RG.layoutOf(v, size, inset, which)
+	local x, y, w, h, kind = RG.rect(v, size, inset)
+	local mark = x and { x = x, y = y, w = w, h = h, kind = kind } or nil
+	local grey = which ~= "in" and TB.cfg().rangeGrey and pictureRect(v, size, inset) or nil
+	if not (mark or grey) then return nil end
+	local l, t, r, b = math.huge, -math.huge, -math.huge, math.huge
+	for _, part in ipairs({ mark or false, grey or false }) do
+		if part then
+			l, t = math.min(l, part.x), math.max(t, part.y)
+			r, b = math.max(r, part.x + part.w), math.min(b, part.y - part.h)
+		end
+	end
+	return { x = l, y = t, w = r - l, h = t - b }, mark, grey
+end
+
+-- Greyed icon: the slot's picture again, greyed and dimmed as an empty slot's Greyed, under the strip or dot
+local GREY_DIM = 0.6
+-- The mark's parts inside its frame (u, mark, grey: RG.layoutOf): icon, the slot's picture (may be secret: only for
+-- SetTexture); tex, the slot's picture texture, for its crop
+function RG.dress(m, u, mark, grey, which, icon, tex)
+	m.at = mark and { mark.x - u.x, mark.y - u.y, mark.w, mark.h } or nil
+	RG.paint(m, mark and mark.kind or false, which)
+	local t = m.grey
+	if not grey then
+		t:Hide()
+		return
+	end
+	t:ClearAllPoints()
+	t:SetPoint("TOPLEFT", m, "TOPLEFT", grey.x - u.x, grey.y - u.y)
+	t:SetSize(grey.w, grey.h)
+	if isSecret(icon) or icon then ns.try("totem range: grey icon", t.SetTexture, t, icon) end
+	if tex then t:SetTexCoord(tex:GetTexCoord()) end
+	t:SetDesaturated(true)
+	t:SetVertexColor(GREY_DIM, GREY_DIM, GREY_DIM)
+	t:Show()
+end
+
+-- The slot's picture changed: its greyed copy follows
+function RG.setIcon(s, icon)
+	s.rangeIcon = icon
+	for _, m in ipairs({ s.rangeMark or false, s.rangeStandIn or false }) do
+		if m and m.grey:IsShown() and (isSecret(icon) or icon) then
+			ns.try("totem range: grey icon", m.grey.SetTexture, m.grey, icon)
+		end
+	end
 end
 
 -- Whether id (a totem down or picked) buffs you, so has a mark
@@ -223,15 +293,16 @@ end
 -- The cell: the mark's rect, and the gate's edge on the left and a unit on the other sides (a thin
 -- mark keeps its rows at a fractional scale)
 local function place(s, g, m, size, which)
-	local x, y, w, h, kind = RG.rect(s.vis, size, s.inset or 0)
+	local u, mark, grey = RG.layoutOf(s.vis, size, s.inset or 0, which)
+	if not u then return end
 	local e = W.AURA_GATE_EDGE
-	local cw, ch = w + e + 1, h + 2
+	local cw, ch = u.w + e + 1, u.h + 2
 	g.cell:ClearAllPoints()
-	g.cell:SetPoint("TOPLEFT", s.button, "TOPLEFT", x - e, y + 1)
+	g.cell:SetPoint("TOPLEFT", s.button, "TOPLEFT", u.x - e, u.y + 1)
 	m:ClearAllPoints()
 	m:SetPoint("TOPLEFT", g.area, "TOPLEFT", e, -1)
-	m:SetSize(w, h)
-	RG.paint(m, kind, which)
+	m:SetSize(u.w, u.h)
+	RG.dress(m, u, mark, grey, which, s.rangeIcon, s.vis.icon)
 	g:resize(cw, ch, string.format("%.3f:%.3f", cw, ch))
 end
 
@@ -289,12 +360,13 @@ end
 
 -- On as the last layout applied it (a change in combat waits for its end: a miss, never a false mark)
 function RG.layout(size)
-	local want = enabled() and ns.isClass()
+	local c = TB.cfg()
+	local want = enabled() and ns.isClass() and (c.rangeGrey or c.rangeShape ~= "none")
 	if events then events(want) end
 	for _, el in ipairs(TB.ELEMENTS) do
 		local s = TB.slots[el]
 		local on = want and s.button:IsShown()
-		local both = on and TB.cfg().rangeShow == "both"
+		local both = on and c.rangeShow == "both" and c.rangeShape ~= "none"
 		s.rangeOn, s.rangeInOn = on, both
 		if on and not s.outGate then makeGate(s) end
 		if both and not s.inGate then makeGate(s, true) end
@@ -473,11 +545,15 @@ function RG.standIn(s, on, size, which)
 		m:SetAlpha(1)
 		s.rangeStandIn = m
 	end
-	local x, y, w, h, kind = RG.rect(s.vis, size, s.inset or 0)
+	local u, mark, grey = RG.layoutOf(s.vis, size, s.inset or 0, which)
+	if not u then
+		m:Hide()
+		return
+	end
 	m:ClearAllPoints()
-	m:SetPoint("TOPLEFT", s.button, "TOPLEFT", x, y)
-	m:SetSize(w, h)
-	RG.paint(m, kind, which)
+	m:SetPoint("TOPLEFT", s.button, "TOPLEFT", u.x, u.y)
+	m:SetSize(u.w, u.h)
+	RG.dress(m, u, mark, grey, which, s.rangeIcon, s.vis.icon)
 	m:Show()
 end
 
@@ -485,7 +561,8 @@ end
 function RG.debug()
 	if P.getDB() then
 		local c = TB.cfg()
-		ns.say("totem range: %s, %s, %s", c.rangeShape, TB.skin.place("rangePlace") == "out" and "beside" or "in the icon",
+		ns.say("totem range: %s%s, %s, %s", c.rangeShape, c.rangeGrey and " and greyed" or "",
+			TB.skin.place("rangePlace") == "out" and "beside" or "in the icon",
 			c.rangeShow == "both" and "in range too" or "out of range only")
 	end
 	for _, el in ipairs(TB.ELEMENTS) do

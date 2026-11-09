@@ -72,7 +72,8 @@ TB.DEFAULTS = {
 	rangeOut = { 0.9, 0.12, 0.08, 0.8 },
 	rangeShow = "out",   -- out | both: out of range only, or in range too
 	rangeInColor = { 0.2, 0.8, 0.25, 0.8 },
-	rangeShape = "strip",   -- strip | dot
+	rangeShape = "strip",   -- strip | dot | none
+	rangeGrey = false,   -- the whole icon greyed while out of range, with the mark or alone
 	rangeDotSize = 12,   -- screen pixels
 	rangeDotX = 0, rangeDotY = 0,   -- from the dot's place, kept in or beside the icon
 	rangePlace = "in",   -- in | out (beside the icon)
@@ -106,7 +107,7 @@ local RANGES = {
 TB.RANGES = RANGES
 local CHOICES = { mode = { "blizzard", "active", "everything" }, show = { "always", "active", "combat", "target" },
 	barPlace = { "in", "out" }, setSwitch = { "popout", "cycle" }, stonePlinth = { "slim", "normal", "grand" },
-	rangeShow = { "out", "both" }, rangeShape = { "strip", "dot" }, rangePlace = { "in", "out" },
+	rangeShow = { "out", "both" }, rangeShape = { "strip", "dot", "none" }, rangePlace = { "in", "out" },
 	rangeOrder = { "after", "before" }, dropWith = { "shift", "alt", "ctrl", "off" } }
 local function clamp(v, r) return math.min(math.max(v, r[1]), r[2]) end
 
@@ -889,6 +890,7 @@ local function refreshSlot(s)
 			ns.try("totem bar: icon", v.icon.SetTexture, v.icon, icon)
 			s.killed:setIcon(icon)
 			s.expired:setIcon(icon)
+			TB.range.setIcon(s, icon)
 		end
 		s.killed.mark:Hide()
 		TB.paintDown(v)
@@ -1743,12 +1745,13 @@ local function paintSlot(s, rec)
 	s.badge:Hide()
 	s.killed:setIcon(icon)
 	s.expired:setIcon(icon)
+	TB.range.setIcon(s, icon)
 	-- The out of range mark where the bar draws it, over a pick that buffs you (or none picked); in range
 	-- while it's on
 	local id = pickSpell(s.slot)
 	local which = rec.range == "in" and "in" or "out"
 	TB.range.standIn(s, rec.range and c.range and shown and (id == nil or TB.range.covers(s.el, id))
-		and (which == "out" or c.rangeShow == "both"), s.button:GetWidth(), which)
+		and (which == "out" or c.rangeShow == "both" and c.rangeShape ~= "none"), s.button:GetWidth(), which)
 	v.icon:SetTexture(icon)
 	if st == "down" or st == "expiring" then
 		s.killed.mark:Hide()
