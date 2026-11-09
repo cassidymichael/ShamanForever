@@ -569,12 +569,6 @@ local function build(p)
 		local shape = p:dropdown("Shape", nil, { { "strip", "Strip" }, { "dot", "Dot" }, { "none", "None" } },
 			tget("rangeShape"), tset("rangeShape"), nil, 190)
 		local function marked() return c().rangeShape ~= "none" end
-		local marks = p:dropdown("Marks", nil, { { "out", "Out of range only" }, { "both", "Out of range and in range" } },
-			tget("rangeShow"), tset("rangeShow"), marked, 240)
-		p:sub(marks, function() return marked() and c().rangeShow == "both" end, function()
-			p:color("In range colour", "Colour and opacity.", tget("rangeInColor"), tset("rangeInColor"))
-			p:text("Shows while your own totem's buff is on you.")
-		end)
 		p:sub(shape, marked, function()
 			p:color("Colour", "Colour and opacity.", tget("rangeOut"), tset("rangeOut"))
 		end)
@@ -584,6 +578,12 @@ local function build(p)
 			tslider("Dot size", "In pixels.", px, "rangeDotSize", is("dot"))
 			tslider("X offset", "From its place. It stays inside the icon, or beside it.", px, "rangeDotX", is("dot"))
 			tslider("Y offset", "From its place. It stays inside the icon, or beside it.", px, "rangeDotY", is("dot"))
+		end)
+		local marks = p:dropdown("Marks", nil, { { "out", "Out of range only" }, { "both", "Out of range and in range" } },
+			tget("rangeShow"), tset("rangeShow"), marked, 240)
+		p:sub(marks, function() return marked() and c().rangeShow == "both" end, function()
+			p:color("In range colour", "Colour and opacity.", tget("rangeInColor"), tset("rangeInColor"))
+			p:text("Shows while your own totem's buff is on you.")
 		end)
 		local place = p:dropdown("Place", "Beside: on the side away from the pickers.",
 			{ { "in", "In the icon" }, { "out", "Beside the icon" } }, tget("rangePlace"), tset("rangePlace"), marked, 190)
