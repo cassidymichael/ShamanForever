@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Totem bar: out of range can now grey out the whole totem icon, on its own or with the strip or dot.
+- Fixed arrow keys no longer working after a fight that started while positioning was unlocked.
 
 ## 0.16.6 (2026-11-06)
 
