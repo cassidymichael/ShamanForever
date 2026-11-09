@@ -273,11 +273,14 @@ end
 
 local function syncNudger()
 	local on = (selectedGroup ~= nil or selectedMovable ~= nil) and not acct().locked and not InCombatLockdown()
-	if on and not nudger.keys then
+	if on then
 		-- Out of combat only: keyboard calls may be refused in a fight
-		nudger:EnableKeyboard(true)
+		if not nudger.keys then
+			nudger:EnableKeyboard(true)
+			nudger.keys = true
+		end
+		-- At every show: a key held as a fight began left it off, which would swallow every key
 		nudger:SetPropagateKeyboardInput(true)
-		nudger.keys = true
 	end
 	if on then nudger:Show() else nudger:Hide() end
 end
