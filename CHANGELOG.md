@@ -1,9 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.16.7 (2026-11-10)
 
-- Totem bar: out of range can now grey out the whole totem icon, on its own or with the strip or dot.
-- Fixed arrow keys no longer working after a fight that started while positioning was unlocked.
+- Totem bar: new "Greyed icon" option for out of range, which greys out the whole totem icon. Use it with the strip or dot, or set Shape to "None" to use it on its own.
+- Fixed an edge case where unlock (positioning) mode could swallow some key presses during combat.
 
 ## 0.16.6 (2026-11-06)
 
