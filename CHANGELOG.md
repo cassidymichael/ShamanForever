@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.16.8 (2026-11-14)
 
 - Totem bar: the out of range indicator for Windfury Totem and Flametongue Totem should now work.
 
