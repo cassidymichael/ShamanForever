@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Totem bar: the out of range indicator for Windfury Totem and Flametongue Totem should now work.
+
 ## 0.16.7 (2026-11-10)
 
 - Totem bar: new "Greyed icon" option for out of range, which greys out the whole totem icon. Use it with the strip or dot, or set Shape to "None" to use it on its own.

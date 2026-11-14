@@ -40,8 +40,6 @@ local BUFF_TOTEMS = {
 local PROVEN = { 8075, 8071, 5394, 5675 }
 -- Labelled experimental
 local UNTESTED = { 8227, 8512, 16190 }
--- The main-hand imbue that cancels your own benefit from a totem (any rank)
-local IMBUE_CANCELS = { [8227] = "flametongue", [8512] = "windfury" }
 
 local buffIDs = {}
 local buffEntry = {}
@@ -391,43 +389,13 @@ local SETTLE = 1
 -- After a dismissal, while its slot and buff go
 local DISMISS = 2
 
--- The imbue key that cancels id's buff, or nil
-local cancels = {}
-local function cancelOf(id)
-	if type(id) ~= "number" or isSecret(id) then return nil end
-	if cancels[id] == nil then
-		cancels[id] = false
-		for totem, key in pairs(IMBUE_CANCELS) do
-			if ns.Spells.same(id, totem) then cancels[id] = key end
-		end
-	end
-	return cancels[id] or nil
-end
-
--- After a cancelling imbue's cast, its totem's marks stay shut this long (until the enchant reads)
-local IMBUE_CAST = 3
-local imbueCast = {}
--- Why a main-hand totem's buff can't be yours now, or nil; an unreadable read shuts it
-local function weaponShut(id)
-	local key = cancelOf(id)
-	if not key then return nil end
-	if GetTime() < (imbueCast[key] or 0) then return "its imbue cast" end
-	local m = ns.Imbue.mainHand()
-	if m == nil or m == key or m == "unknown" then return "a main-hand imbue" end
-	local ok, form = ns.safe(GetShapeshiftFormID)
-	if not ok or isSecret(form) or (form ~= nil and form ~= 0) then return "shapeshifted" end
-	local iok, item = ns.safe(GetInventoryItemID, "player", 16)
-	if not iok or isSecret(item) or item == nil then return "no main-hand weapon" end
-	return nil
-end
-
 local function plainOpen(s)
 	if not (s.rangeOn == true and not previewOn and s.down == true and not ns.zoning()
 		and GetTime() >= (s.rangeShutUntil or 0)) then
 		return false
 	end
 	local id = ns.Totems.downSpell(s.slot)
-	return isBuffTotem(s.el, id) and seen(id) and not weaponShut(id)
+	return isBuffTotem(s.el, id) and seen(id)
 end
 
 -- The gate's want, from plain reads only
@@ -468,16 +436,6 @@ local function shut(s)
 	if s.outGate then RG.refresh(s) end
 end
 
--- Our casts: a cancelling imbue shuts its totem's marks before the enchant reads
-function RG.onCast(spell)
-	local key = ns.Spells.keyOf(spell)
-	for _, k in pairs(IMBUE_CANCELS) do
-		if k == key then
-			imbueCast[k] = GetTime() + IMBUE_CAST
-			for _, el in ipairs(TB.ELEMENTS) do RG.refresh(TB.slots[el]) end
-		end
-	end
-end
 -- Whether your own buff from entry e's totem is on you (at rest, auras readable)
 local function buffOn(el, e)
 	local name = ns.Spells.nameOf(e.buffs[1])
@@ -569,14 +527,13 @@ function RG.debug()
 		local s = TB.slots[el]
 		if s.outGate then
 			local id = s.down and ns.Totems.downSpell(s.slot)
-			local why = s.down and weaponShut(id)
 			local e = s.down and entryOf(el, id)
 			local mine = not e and "" or (ns.inCombat() or not ns.aurasReadable()) and ", your buff unreadable now"
 				or buffOn(el, e) and ", your buff on you" or ", your buff not on you"
 			ns.say("totem range %s: %s, totem %s, open %s; %s", el, s.rangeOn and "on" or "off",
 				(not s.down and "none" or not isBuffTotem(el, id) and "without a buff"
-				or seen(id) and "with a buff" or "with a buff, not confirmed yet") .. mine
-				.. (why and (", shut: " .. why) or ""), tostring(s.rangeOpen == true), s.outGate:describe())
+				or seen(id) and "with a buff" or "with a buff, not confirmed yet") .. mine,
+				tostring(s.rangeOpen == true), s.outGate:describe())
 			if s.inGate and s.rangeInOn then ns.say("totem range %s in range: %s", el, s.inGate:describe()) end
 		end
 	end
@@ -588,11 +545,4 @@ function RG.start()
 	events = ns.eventsWhile(ev, { { "UNIT_AURA", "player" } })
 	events(enabled() and ns.isClass())
 	ev:SetScript("OnEvent", learn)
-	-- The weapon rules change while the bar is hidden too: read them again as it shows
-	TB.frame:HookScript("OnShow", function()
-		for _, el in ipairs(TB.ELEMENTS) do
-			local s = TB.slots[el]
-			if s.down and cancelOf(ns.Totems.downSpell(s.slot)) then RG.refresh(s) end
-		end
-	end)
 end
