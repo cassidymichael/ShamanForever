@@ -65,9 +65,9 @@ local function ownersText(lead, part)
 	return (ns.OptionsArt.wordList(names):gsub("^%l", string.upper)) .. " can have their own."
 end
 
--- A slider over a registered { min, max, step }; styleSlider: a style field's
+-- A slider over a registered { min, max, step, soft = { low, high } }; styleSlider: a style field's
 local function rangeSlider(p, r, label, tip, fmt, get, set, shown)
-	return p:slider(label, tip, r[1], r[2], r[3] or 1, fmt, get, set, shown)
+	return p:slider(label, tip, r[1], r[2], r[3] or 1, fmt, get, set, shown, r.soft)
 end
 local function styleSlider(p, part, field, label, tip, fmt, get, set, shown)
 	return rangeSlider(p, ns.Style.PARTS[part].ranges[field], label, tip, fmt, get, set, shown)

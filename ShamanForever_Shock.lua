@@ -36,7 +36,7 @@ E.register("shock", { frame = shock, label = "Shocks", paint = function(t) t:Set
 		-- side: above or below in a row group, right or left in a column; size: of the icon's
 		marks = { frost = true, flame = true, side = "above", size = 0.44, gap = 2 },
 		ready = { pop = true, glow = false, sound = "none" }, idleKeep = { ready = false, marks = false } },
-	ranges = { marks = { size = { 0.3, 0.5, 0.02 }, gap = { 0, 20, 1 } } },
+	ranges = { marks = { size = { 0.3, 0.5, 0.02 }, gap = { 0, 500, 1, soft = { 0, 20 } } } },
 	choices = { marks = { side = { "above", "below" } } },
 	def = { key = "shock", idleChoices = CD.IDLE_CHOICES, idleKeep = {
 		{ "ready", "Ready glow", "Only while its glow is on." },

@@ -501,10 +501,12 @@ function P.export()
 	return text
 end
 
--- { min, max, step }: clamped; NaN takes the default. Elements' numbers use their registered ranges.
+-- { min, max, step, soft = { low, high } }: clamped to min and max (soft is the sliders' bar only); NaN takes the
+-- default. Elements' numbers use their registered ranges.
 local RANGES = { iconSize = { 24, 96, 1 }, idleFade = { 0, 1, 0.1 } }
-local GROUP_RANGES = { scale = { 0.5, 3, 0.05 }, alpha = { 0.1, 1, 0.05 }, spacing = { -20, 40, 1 },
-	size = { 24, 96, 1 }, x = { -10000, 10000, 1 }, y = { -10000, 10000, 1 }, fadeAfter = { 0, 10, 1 } }
+local GROUP_RANGES = { scale = { 0.5, 3, 0.05 }, alpha = { 0.1, 1, 0.05 },
+	spacing = { -500, 500, 1, soft = { -20, 40 } }, size = { 24, 96, 1 }, x = { -10000, 10000, 1 },
+	y = { -10000, 10000, 1 }, fadeAfter = { 0, 10, 1 } }
 P.RANGES, P.GROUP_RANGES = RANGES, GROUP_RANGES
 local function clampNumbers(t, ranges, defaults)
 	for k, r in pairs(ranges) do

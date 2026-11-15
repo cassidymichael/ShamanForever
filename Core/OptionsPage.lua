@@ -1222,7 +1222,10 @@ local function unitsOf(fmt, minV, maxV)
 	return 1, 0
 end
 
-function Page:slider(label, tip, minV, maxV, step, fmt, get, set, shown)
+-- minV and maxV bound the typed box; soft = { low, high } is the bar's own, narrower range
+function Page:slider(label, tip, minV, maxV, step, fmt, get, set, shown, soft)
+	local lo, hi = soft and soft[1] or minV, soft and soft[2] or maxV
+	local function onBar(v) return math.min(math.max(v, lo), hi) end
 	local f = self:row(34)
 	f.label = self:label(f, label, tip)
 	local s = CreateFrame("Frame", nil, f, "MinimalSliderWithSteppersTemplate")
@@ -1235,7 +1238,7 @@ function Page:slider(label, tip, minV, maxV, step, fmt, get, set, shown)
 		return v
 	end
 	local box = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
-	s:Init(get() or minV, minV, maxV, math.floor((maxV - minV) / step + 0.5))
+	s:Init(onBar(get() or minV), lo, hi, math.floor((hi - lo) / step + 0.5))
 	s:RegisterCallback(MinimalSliderWithSteppersMixin.Event.OnValueChanged, function(_, v)
 		if updating then return end
 		v = snap(v)
@@ -1270,7 +1273,7 @@ function Page:slider(label, tip, minV, maxV, step, fmt, get, set, shown)
 			v = math.min(math.max(v, minV), maxV)
 			set(v)
 			updating = true
-			s:SetValue(get() or v)
+			s:SetValue(onBar(get() or v))
 			updating = false
 		end
 		b:ClearFocus()
@@ -1281,9 +1284,10 @@ function Page:slider(label, tip, minV, maxV, step, fmt, get, set, shown)
 		s:SetWidth(math.max(span - BOX_GAP - BOX_W, 80))
 		-- Set only when it differs: setting reformats the slider.
 		local v = get() or minV
-		if not (s.Slider and s.Slider:GetValue() == v) then
+		local shownAt = onBar(v)
+		if not (s.Slider and s.Slider:GetValue() == shownAt) then
 			updating = true
-			s:SetValue(v)
+			s:SetValue(shownAt)
 			updating = false
 		end
 		if not box:HasFocus() then box:SetText(fmt(v)) end

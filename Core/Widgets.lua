@@ -82,7 +82,8 @@ W.WORD = {
 	points = { below = { "TOP", "BOTTOM", -4 }, above = { "BOTTOM", "TOP", 4 }, center = { "CENTER", "CENTER", 0 } },
 	positions = { { "below", "Below the icon" }, { "above", "Above the icon" }, { "center", "On the icon" } },
 	defaults = { wordSize = 16, wordColor = { 1, 0.82, 0, 1 }, wordPos = "below", wordX = 0, wordY = 0 },
-	ranges = { wordSize = { 8, 40, 1 }, wordX = { -100, 100, 1 }, wordY = { -100, 100, 1 } },
+	ranges = { wordSize = { 8, 40, 1 }, wordX = { -500, 500, 1, soft = { -100, 100 } },
+		wordY = { -500, 500, 1, soft = { -100, 100 } } },
 	choices = { wordPos = { "below", "above", "center" } },
 }
 -- own(name) reads the owner's setting

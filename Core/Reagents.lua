@@ -18,8 +18,8 @@ local DEFAULTS = { reagent = {
 	size = 14, pos = "BOTTOMRIGHT", x = 0, y = 0,
 	ring = true, fade = true,
 } }
-local RANGES = { reagent = { low = { 0, 10, 1 }, size = { 8, 40, 1 }, x = { -50, 50, 1 },
-	y = { -50, 50, 1 } } }
+local RANGES = { reagent = { low = { 0, 10, 1 }, size = { 8, 40, 1 }, x = { -500, 500, 1, soft = { -50, 50 } },
+	y = { -500, 500, 1, soft = { -50, 50 } } } }
 
 local IDLE_EXTRA = { name = "reagent", field = "lowKeepsShown", label = "Running low",
 	tip = "Running low or out counts as something going on, even at 0%.",

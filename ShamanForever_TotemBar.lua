@@ -91,16 +91,20 @@ TB.DEFAULTS = {
 
 local isSecret = ns.isSecret
 
--- { min, max, step }: clamped as the settings load, and the page's sliders
+-- { min, max, step, soft = { low, high } }: clamped as the settings load; the page's sliders, their bar over soft
 local EXPIRE_SECS = { 0, 30, 1 }
 local RANGES = {
-	scale = { 0.5, 3, 0.05 }, alpha = { 0.1, 1, 0.05 }, spacing = { -10, 20, 1 }, size = { 24, 96, 1 },
+	scale = { 0.5, 3, 0.05 }, alpha = { 0.1, 1, 0.05 }, spacing = { -500, 500, 1, soft = { -10, 20 } },
+	size = { 24, 96, 1 },
 	arrowSize = { 8, 32, 1 }, extrasScale = { 0.5, 1.5, 0.05 }, stoneExtrasScale = { 0.5, 1.5, 0.05 },
-	extrasGap = { -10, 30, 1 }, extrasSpacing = { -10, 20, 1 },
+	extrasGap = { -500, 500, 1, soft = { -10, 30 } }, extrasSpacing = { -500, 500, 1, soft = { -10, 20 } },
 	idleAlpha = { 0.1, 1, 0.05 }, badgeSize = { 0.25, 0.8, 0.05 }, badgeAlpha = { 0.1, 1, 0.05 },
-	badgeSat = { 0, 1, 0.05 }, badgeX = { -30, 30, 1 }, badgeY = { -30, 30, 1 }, rangeHeight = { 1, 12, 1 },
-	rangeGap = { 0, 20, 1 }, rangeDotSize = { 3, 30, 1 }, rangeDotX = { -48, 48, 1 }, rangeDotY = { -48, 48, 1 },
-	fadeAfter = { 0, 10, 1 }, keySize = { 6, 30, 1 }, keyX = { -20, 20, 1 }, keyY = { -20, 20, 1 },
+	badgeSat = { 0, 1, 0.05 }, badgeX = { -500, 500, 1, soft = { -30, 30 } },
+	badgeY = { -500, 500, 1, soft = { -30, 30 } }, rangeHeight = { 1, 12, 1 },
+	rangeGap = { 0, 500, 1, soft = { 0, 20 } }, rangeDotSize = { 3, 30, 1 }, rangeDotX = { -48, 48, 1 },
+	rangeDotY = { -48, 48, 1 },
+	fadeAfter = { 0, 10, 1 }, keySize = { 6, 30, 1 }, keyX = { -500, 500, 1, soft = { -20, 20 } },
+	keyY = { -500, 500, 1, soft = { -20, 20 } },
 	pixelEdge = { 1, 4, 1 },
 	expire = { secs = EXPIRE_SECS },
 }
