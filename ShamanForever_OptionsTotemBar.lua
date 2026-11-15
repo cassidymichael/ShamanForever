@@ -112,10 +112,17 @@ PREVIEW = {
 		local items = math.min(POP_ITEMS, 1 + #known)
 		local popLen = TB.popLength(items, psz)
 		local seq, along, line = TB.along(math.max(#places, 1), size)
-		-- Room on the side away from the pickers: the badge, or a mark beside the slots
-		local badge = st == "offpick" and c.offPick and TB.badgeSize(size) + TB.skin.badgeGap(size, h.barFrame)
-			or st == "range" and TB.range.band(h.barFrame) and TB.skin.beside(size, h.barFrame).reach or 0
-		local across = line + (picking and (c.arrowSize + 4 + popLen) or 0) + badge
+		-- Room on the side away from the pickers (lead): the badge, or a mark beside the slots; the badge on the
+		-- other side has its own (lag)
+		local lead, lag = 0, 0
+		if st == "offpick" and c.offPick then
+			local side, away = TB.skin.badgeSide()
+			local room = TB.badgeSize(size) + TB.skin.badgeGap(size, h.barFrame)
+			if side == away then lead = room else lead, lag = TB.skin.beside(size, h.barFrame).reach, room end
+		elseif st == "range" and TB.range.band(h.barFrame) then
+			lead = TB.skin.beside(size, h.barFrame).reach
+		end
+		local across = line + (picking and (c.arrowSize + 4 + popLen) or 0) + lead + lag
 		local w = h:GetWidth()
 		if not w or w <= 0 then w = 600 end
 		local availW, availH = w - 80 - (h.stateW or 0), h.heroH - 14 - 58 - 12
@@ -132,7 +139,7 @@ PREVIEW = {
 		local dir = TB.eff().pop
 		bar:SetPoint("CENTER", h.area, "CENTER", 0, 0)
 		local function place(ic, off, cross)
-			local x = badge + (cross or 0)
+			local x = lead + (cross or 0)
 			if row then
 				if dir == "down" then ic:SetPoint("TOPLEFT", bar, "TOPLEFT", off, -x)
 				else ic:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", off, x) end
@@ -540,9 +547,17 @@ local function build(p)
 
 	p:header("Different totem down")
 	p:text("When a totem other than that slot's default is down.")
-	local offPick = p:checkbox("Show your pick", "On the side away from the picker.",
-		tget("offPick"), tset("offPick"))
+	local offPick = p:checkbox("Show your pick", nil, tget("offPick"), tset("offPick"))
 	p:sub(offPick, tget("offPick"), function()
+		p:dropdown("Side", nil, function()
+			if TB.eff().dir == "row" then
+				return { { "auto", "Away from the picker" }, { "above", "Above" }, { "below", "Below" } }
+			end
+			return { { "auto", "Away from the picker" }, { "left", "Left" }, { "right", "Right" } }
+		end, function()
+			local side = TB.skin.badgeSide()
+			return c().badgeSide == side and side or "auto"
+		end, tset("badgeSide"), nil, 190)
 		tslider("Size", nil, pct, "badgeSize")
 		tslider("Opacity", nil, pct, "badgeAlpha")
 		tslider("Colour", "0% is grey, 100% full colour.", pct, "badgeSat")

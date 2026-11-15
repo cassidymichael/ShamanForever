@@ -56,6 +56,7 @@ TB.DEFAULTS = {
 	idleGrey = false,
 	idleAlpha = 0.35,
 	offPick = true,
+	badgeSide = "auto",   -- auto (away from the pickers) | above | below | left | right
 	badgeSize = 0.45,
 	badgeAlpha = 0.75,
 	badgeSat = 0.5,
@@ -112,7 +113,8 @@ TB.RANGES = RANGES
 local CHOICES = { mode = { "blizzard", "active", "everything" }, show = { "always", "active", "combat", "target" },
 	barPlace = { "in", "out" }, setSwitch = { "popout", "cycle" }, stonePlinth = { "slim", "normal", "grand" },
 	rangeShow = { "out", "both" }, rangeShape = { "strip", "dot", "none" }, rangePlace = { "in", "out" },
-	rangeOrder = { "after", "before" }, dropWith = { "shift", "alt", "ctrl", "off" } }
+	rangeOrder = { "after", "before" }, badgeSide = { "auto", "above", "below", "left", "right" },
+	dropWith = { "shift", "alt", "ctrl", "off" } }
 local function clamp(v, r) return math.min(math.max(v, r[1]), r[2]) end
 
 local EXPIRE_OVER = { earthbind = 5, stoneclaw = 5, manaTide = 3 }
@@ -320,9 +322,10 @@ function TB.layoutBadge(bd, anchor, size, border)
 	bd:ClearAllPoints()
 	local gap = inset + TB.skin.badgeGap(size, anchor)
 	local x, y = c.badgeX, c.badgeY
-	if c.pop == "up" then bd:SetPoint("TOP", anchor, "BOTTOM", x, y - gap)
-	elseif c.pop == "down" then bd:SetPoint("BOTTOM", anchor, "TOP", x, y + gap)
-	elseif c.pop == "right" then bd:SetPoint("RIGHT", anchor, "LEFT", x - gap, y)
+	local side = TB.skin.badgeSide()
+	if side == "below" then bd:SetPoint("TOP", anchor, "BOTTOM", x, y - gap)
+	elseif side == "above" then bd:SetPoint("BOTTOM", anchor, "TOP", x, y + gap)
+	elseif side == "left" then bd:SetPoint("RIGHT", anchor, "LEFT", x - gap, y)
 	else bd:SetPoint("LEFT", anchor, "RIGHT", x + gap, y) end
 end
 

@@ -95,7 +95,7 @@ FR.addGroupStyle("totemband", { name = "Totem band", group = "painted", credit =
 -- extrasBorder, behind, plinth (PLINTH_ART key) and plinthSize(), extrasScaleKey, fixedSlots (every
 -- element keeps a place; unshown ones are sealed sockets), dress (per-button art: "blizzard",
 -- "plates", "boss"), dressInset (the share of the picture its dress covers from the edge), timeBar,
--- picker, arrow, badgeGap(size)
+-- picker, arrow, badgeGap(size, side): the art past the slot on the side the badge is on
 TH.LIST, TH.byKey = {}, {}
 local function add(key, entry)
 	entry.key = key
@@ -129,7 +129,10 @@ local function plinthReach(size)
 	local u = size / PL_SLOT
 	return pl.slotY * u, (pl.rect[4] - pl.slotY - PL_SLOT) * u
 end
-local function belowPlinth(size) return select(2, plinthReach(size)) end
+local function plinthGap(size, side)
+	local above, below = plinthReach(size)
+	return side == "above" and above or side == "below" and below or 0
+end
 
 local function plinthOwns(extra, beyond)
 	return function()
@@ -164,7 +167,7 @@ add("stone", {
 	end),
 	border = borderStyle("line", 1), extrasBorder = borderStyle("medallion"),
 	behind = "plinth", picker = "plinth", arrow = "plinth", fixedSlots = true,
-	extrasScaleKey = "stoneExtrasScale", badgeGap = belowPlinth,
+	extrasScaleKey = "stoneExtrasScale", badgeGap = plinthGap,
 })
 
 add("bosses", {
@@ -173,21 +176,21 @@ add("bosses", {
 	owns = plinthOwns(function() return { extrasGapShare = TB.cfg().extrasScale / 2 + 0.06 } end),
 	border = borderStyle("line", 1), extrasBorder = borderStyle("roundicon"), dress = "boss",
 	behind = "plinth", picker = "plinth", arrow = "plinth", fixedSlots = true,
-	badgeGap = belowPlinth,
+	badgeGap = plinthGap,
 })
 
 add("wood", {
 	name = "Wood and bone", experimental = true,
 	plinth = "wood", owns = plinthOwns(nil, -0.3),
 	border = borderStyle("line", 1), extrasBorder = borderStyle("woodedge"),
-	behind = "plinth", picker = "plinth", arrow = "plinth", fixedSlots = true, badgeGap = belowPlinth,
+	behind = "plinth", picker = "plinth", arrow = "plinth", fixedSlots = true, badgeGap = plinthGap,
 })
 
 add("iron", {
 	name = "Iron and ember", experimental = true,
 	plinth = "iron", owns = plinthOwns(nil, 0.06),
 	border = borderStyle("line", 1), extrasBorder = borderStyle("ironedge"),
-	behind = "plinth", picker = "plinth", arrow = "plinth", fixedSlots = true, badgeGap = belowPlinth,
+	behind = "plinth", picker = "plinth", arrow = "plinth", fixedSlots = true, badgeGap = plinthGap,
 })
 
 add("elements", {
@@ -296,9 +299,9 @@ function TH.place(field)
 end
 
 -- Beside a slot, on the side away from the pickers, from its edge outward: the time bar and the out of
--- range mark in the player's order, each after its own gap, then the badge. From settings only, so
--- nothing moves when a mark lights. f: a frame at the slot's scale. Returns side, and the time bar's
--- and the mark's offsets (nil when not beside) and the reach past both.
+-- range mark in the player's order, each after its own gap, then the badge if it is on that side. From
+-- settings only, so nothing moves when a mark lights. f: a frame at the slot's scale. Returns side, and
+-- the time bar's and the mark's offsets (nil when not beside) and the reach past both.
 local AWAY = { up = "below", down = "above", right = "left", left = "right" }
 local function outGap(size) return math.max(math.floor(size * 3 / W.BASE_ICON_SIZE + 0.5), 2) end
 function TH.beside(size, f)
@@ -322,9 +325,20 @@ function TH.beside(size, f)
 	return out
 end
 
+-- The badge's side: the player's where the bar's direction has it, else away from the pickers.
+-- Returns it and the away side.
+local BADGE_SIDES = { up = { above = true, below = true }, down = { above = true, below = true },
+	right = { left = true, right = true }, left = { left = true, right = true } }
+function TH.badgeSide()
+	local c = TB.eff()
+	local want = c.badgeSide
+	return BADGE_SIDES[c.pop][want] and want or AWAY[c.pop], AWAY[c.pop]
+end
+
 function TH.badgeGap(size, f)
+	local side, away = TH.badgeSide()
 	local g = TH.current().badgeGap
-	return (g and g(size) or 0) + TH.beside(size, f).reach
+	return (g and g(size, side) or 0) + (side == away and TH.beside(size, f).reach or 0)
 end
 
 -- Drawing: each call draws the look picked now, or takes down what another look drew
