@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.16.9 (2026-11-15)
+
+- Totem bar: "Different totem down" has a new "Side" option, so your pick can show above or below the bar (left or right on a vertical bar).
+- Settings like pixel offsets, gaps, and spacing now accept typed values far greater than what the default slider reaches (up to 500px typically, more for some).
+
 ## 0.16.8 (2026-11-14)
 
 - Totem bar: the out of range indicator for Windfury Totem and Flametongue Totem should now work.
