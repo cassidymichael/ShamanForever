@@ -61,10 +61,12 @@ function SN.channel()
 	return CHANNEL_OK[c] and c or "Master"
 end
 
-local function emit(value)
+-- channel: in place of Global's
+local function emit(value, channel)
 	local how, what = resolve(value)
-	if how == "kit" then ns.try("sound", PlaySound, what, SN.channel())
-	elseif how == "file" then ns.try("sound", PlaySoundFile, what, SN.channel()) end
+	channel = channel or SN.channel()
+	if how == "kit" then ns.try("sound", PlaySound, what, channel)
+	elseif how == "file" then ns.try("sound", PlaySoundFile, what, channel) end
 end
 
 local lastByAlert, lastBySound = {}, {}
@@ -87,7 +89,13 @@ function SN.element(key, event, zoning, gap)
 	if E.inUse(key) then SN.play(E.setting(key, event, "sound"), key .. ":" .. event, gap, zoning) end
 end
 
-function SN.test(value) emit(value) end
+-- Every play heard, none skipped for following another closely
+function SN.playEach(value, channel)
+	if not resolve(value) or not E.isActive() or ns.isOff() or ns.cantAct() then return end
+	emit(value, channel)
+end
+
+function SN.test(value, channel) emit(value, channel) end
 function SN.playable(value) return resolve(value) ~= nil end
 
 -- Aura sounds: the engine plays them, so they work in combat. Changes wait for combat's end, but off and on.
