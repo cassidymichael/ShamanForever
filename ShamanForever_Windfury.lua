@@ -325,6 +325,17 @@ for i, s in ipairs(ALERTS) do
 		describe = function() return string.format("%s alert: text size %d", label, cfg()[id].size) end })
 end
 
+-- Each alert that is on, where a fresh group keeps clear of it
+local placed = {}
+local function boxes()
+	wipe(placed)
+	for _, s in ipairs(ALERTS) do
+		local c = cfg()[s[1]]
+		if c.shown then placed[#placed + 1] = { c.point, c.x, c.y, BOX_W, BOX_H } end
+	end
+	return placed
+end
+
 -- /sf preview: each alert standing as it looks
 local function showPreview(opts)
 	previewing = opts ~= nil
@@ -341,6 +352,6 @@ end
 
 Bars.register("windfury", { label = "Windfury proc alerts", noun = "the Windfury proc alerts", cfg = cfg,
 	saved = "windfury", defaults = WF.DEFAULTS, ranges = WF.RANGES, choices = WF.CHOICES, on = WF.isOn,
-	parts = { "text" }, movable = movers.weapon, hud = { show = showPreview } })
+	parts = { "text" }, movable = movers.weapon, boxes = boxes, hud = { show = showPreview } })
 ns.Positioning.addMovable(movers.totem, "windfury")
 MOD.register(WF)
