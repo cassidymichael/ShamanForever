@@ -45,7 +45,7 @@ TB.DEFAULTS = {
 	keyColor = { 0.85, 0.85, 0.85, 1 },
 	call = true,
 	recall = true,
-	setSwitch = "popout",   -- popout | cycle: how the Call button switches totem sets
+	setSwitch = "popout",   -- popout | cycle: what right-clicking the Call button does
 	setNumber = true,
 	extras = "after",   -- ends | before | after the slots
 	extrasScale = 0.8,
@@ -634,19 +634,8 @@ end
 follow(call.button)
 follow(callKey)
 
--- Asked to switch sets while they can't switch
-local cueAt = 0
-local function lockedCue()
-	if TS.switchInCombat() or TS.count() < 2 or not ns.inCombat() then return end
-	if GetTime() - cueAt < 1 then return end
-	cueAt = GetTime()
-	local errors = _G.UIErrorsFrame
-	if errors then errors:AddMessage("Totem sets can't switch in combat", 1, 0.1, 0.1)
-	else ns.say("totem sets can't switch in combat") end
-end
-
--- The Call button switches sets: Alt+click, its arrow or hover open a picker of the known sets
--- (picker 5), or right-click goes to the next
+-- The Call button switches sets, in combat too: right-click, Alt+click, its arrow or hover open a
+-- picker of the known sets (picker 5), or right-click goes to the next
 local SET_PICK = 5
 local setSlot = { index = SET_PICK, button = call.button }
 makePicker(setSlot, "Sets")
@@ -679,21 +668,28 @@ for set, id in ipairs(SET_CALL) do
 		GameTooltip:Show()
 	end)
 	p:SetScript("OnLeave", function() GameTooltip:Hide() end)
-	p:SetScript("PostClick", function(_, button)
-		if button == "LeftButton" and set ~= TS.active() then lockedCue() end
-	end)
 	wrapHover(p)   -- after its scripts: setting a script later would drop the wrap
 	setSlot.popout.buttons[set] = p
 end
+-- Right-click on the release: the next set, or the picker opened or closed (with hover, opened:
+-- the mouse is already over it)
 wrapClick(call.button, SLOT_CLICK .. [[
-	if button == "RightButton" and self:GetAttribute("sf-cycle") then
+	if button ~= "RightButton" then return end
+	local i = self:GetAttribute("sf-pick")
+	if self:GetAttribute("sf-cycle") then
 		if not down then owner:RunAttribute("sf-switch", 0) end
 		return false
 	end
+	if not i then return end
+	if not down then
+		if owner:GetFrameRef("pop" .. i):IsShown() and not owner:GetAttribute("sf-hovermode") then
+			owner:RunAttribute("sf-close", i)
+		else
+			owner:RunAttribute("sf-open", i)
+		end
+	end
+	return false
 ]])
-call.button:SetScript("PostClick", function(_, button, down)
-	if button == "RightButton" and not down and cfg().setSwitch == "cycle" then lockedCue() end
-end)
 call.num = W.makeKeyText(call.keys)
 call.num:SetTextColor(1, 1, 1)
 
@@ -709,7 +705,6 @@ local nextSet = CreateFrame("Button", "ShamanForeverKeyNextSet", UIParent,
 	"SecureActionButtonTemplate")
 nextSet:RegisterForClicks("AnyDown", "AnyUp")
 wrapClick(nextSet, [[ if not down then owner:RunAttribute("sf-switch", 0) end return false ]])
-nextSet:SetScript("PostClick", function(_, _, down) if not down then lockedCue() end end)
 
 local function refreshKeys()
 	local on = cfg().keys
@@ -949,20 +944,13 @@ end
 -- The active set: the picker header's sf-set, written by the switch snippet or by writeSet (out of
 -- combat); a hook keeps the plain side in step, in combat too
 local applying = false
--- The Call's icon and number; in combat while sets can't switch, the other sets greyed in its
--- picker
+-- The Call's icon and number, and the active set marked in its picker
 local function paintSets()
 	local set = TS.active()
-	local locked = not TS.switchInCombat() and ns.inCombat()
 	call.vis.icon:SetTexture(C_Spell.GetSpellTexture(SET_CALL[set]))
 	call.num:SetText(set)
 	call.num:SetShown(cfg().setNumber and TS.count() > 1)
-	for i, p in ipairs(setSlot.popout.buttons) do
-		local off = locked and i ~= set
-		p.on:SetShown(i == set)
-		p.icon:SetDesaturated(off)
-		p.icon:SetAlpha(off and 0.5 or 1)
-	end
+	for i, p in ipairs(setSlot.popout.buttons) do p.on:SetShown(i == set) end
 end
 local function setActive(set, chosen)
 	TS.setActive(set, chosen)
@@ -970,7 +958,7 @@ local function setActive(set, chosen)
 	paintSets()
 	refreshSlots()
 	refreshGCD()
-	if chosen and not InCombatLockdown() then ns.changed() end
+	ns.changed()
 end
 picker:HookScript("OnAttributeChanged", function(_, name, value)
 	if name ~= "sf-set" or isSecret(value) or type(value) ~= "number" then return end
@@ -1587,12 +1575,10 @@ for _, e in pairs(extras) do
 			if not knows(e.spell) then GameTooltip:AddLine("Not learned yet", 0.6, 0.6, 0.6) end
 			GameTooltip:AddLine("Right-click: dismiss all totems (no GCD, but no mana returned)", 1, 0.82, 0, true)
 		elseif TS.count() > 1 then
-			if not TS.switchInCombat() and ns.inCombat() then
-				GameTooltip:AddLine("Totem sets switch out of combat", 0.6, 0.6, 0.6)
-			elseif c.setSwitch == "cycle" then
+			if c.setSwitch == "cycle" then
 				GameTooltip:AddLine("Right-click: next totem set", 1, 0.82, 0, true)
 			else
-				GameTooltip:AddLine("Alt+click: choose a totem set", 1, 0.82, 0, true)
+				GameTooltip:AddLine("Right-click or Alt+click: choose a totem set", 1, 0.82, 0, true)
 			end
 		end
 		GameTooltip:Show()
@@ -1686,12 +1672,10 @@ function TB.start()
 	events(barOn())
 	-- Never left over the bar in combat, taking the keyboard
 	ns.onCombatStart(kbLeave)
-	ns.onCombatStart(paintSets)
 	ns.onCombatEnd(function()
 		saidWait = false
 		closePopouts()
 		movable.update()
-		paintSets()
 	end)
 	bar:HookScript("OnShow", function() ticker:Show() end)
 	bar:HookScript("OnHide", function() ticker:Hide() end)

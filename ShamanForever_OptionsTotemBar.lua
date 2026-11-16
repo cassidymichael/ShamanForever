@@ -527,12 +527,10 @@ local function build(p)
 	p:add(setsRow, 22)
 	p:text("Each Call drops its own set of four totems. The bar uses one set at a time: its slots, "
 		.. "picks, Call button and keys.")
-	p:dropdown("Switch sets", "How the Call button changes the set.",
-		{ { "popout", "Picker on the Call button" }, { "cycle", "Right-click the Call button" } },
+	p:dropdown("Right-click Call", nil, { { "popout", "Opens a picker" }, { "cycle", "Goes to the next set" } },
 		tget("setSwitch"), tset("setSwitch"), nil, 240)
 	p:checkbox("Show set number", "On the Call button.", tget("setNumber"), tset("setNumber"))
-	p:text(ns.TotemSets.switchInCombat() and "Key: Next totem set."
-		or "Sets switch out of combat only. Key: Next totem set.")
+	p:text("Key: Next totem set.")
 
 	p.gate = full
 	p:header("Totem not down")
