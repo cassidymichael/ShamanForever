@@ -127,9 +127,10 @@ end
 -- combat), how a sentence names what it brings back (nil when it brings nothing back now), and what
 -- stays on screen while on until combat ends (nil when nothing does).
 -- Options: icon, school, blurb, tags() and preview (its page header: a stage, as _Kinds says); page
--- = { order, build } (titled and iconned as the bar); experiments = { { name, where } } (About's
--- list); ownSize() (its icon size isn't Global's); tiles = { icon, schools, border() } (its style
--- blocks' sample tiles: their icon, the schools they show (else all), their border; none: no tiles)
+-- = { order, build } (titled and iconned as the bar); experimental (the whole bar's name: a badge in
+-- its page header and a line in About's list); experiments = { { name, where } } (About's list);
+-- ownSize() (its icon size isn't Global's); tiles = { icon, schools, border() } (its style blocks'
+-- sample tiles: their icon, the schools they show (else all), their border; none: no tiles)
 local BARS, BAR_ORDER = {}, {}
 -- The on-off toggle's header and the bars' whileOff entries (below)
 local toggleHead
