@@ -519,21 +519,22 @@ local function build(p)
 			ns.Spells.name("call"), ns.Spells.name("recall"))
 	end)
 
-	-- Only once a second Call is known
-	p.gate = function() return full() and ns.TotemSets.count() > 1 end
+	-- The grid for every Call; the Call button's own rows once a second Call is known, while it's on the bar
 	p:header("Totem sets")
 	local setsRow = p:row(22)
 	ns.OptionsArt.expBadge(setsRow, "Totem sets"):SetPoint("LEFT", setsRow, "LEFT", LABEL_W, 0)
 	p:add(setsRow, 22)
 	p:text("Each Call drops its own set of four totems. The bar uses one set at a time: its slots, "
 		.. "picks, Call button and keys.")
+	ns.TotemSetsPage.build(p)
+	local callRows = function() return c().call and ns.TotemSets.count() > 1 end
 	local right = p:dropdown("Right-click Call", nil,
 		{ { "popout", "Opens a picker" }, { "cycle", "Goes to the next set" } }, tget("setSwitch"), tset("setSwitch"),
-		nil, 240)
+		callRows, 240)
 	p:sub(right, function() return c().setSwitch == "popout" end, function()
 		p:checkbox("Open the set picker on hover", nil, tget("setHover"), tset("setHover"))
 	end)
-	p:checkbox("Show set number", "On the Call button.", tget("setNumber"), tset("setNumber"))
+	p:checkbox("Show set number", "On the Call button.", tget("setNumber"), tset("setNumber"), callRows)
 	p:text("Key: Next totem set.")
 
 	p.gate = full
@@ -733,7 +734,7 @@ local function build(p)
 	p.gate = nil
 end
 
-local experiments = { { "Totem sets", "Totem sets, once you know a second Call" } }
+local experiments = { { "Totem sets", "Totem sets" } }
 local untested = ns.TotemBar.range.untested()
 if #untested > 0 then
 	table.insert(experiments, { "Out of range for " .. table.concat(untested, ", "), "Out of range" })

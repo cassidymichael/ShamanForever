@@ -204,6 +204,7 @@ local function multiAction(slot, set)
 	if not ok or type(bar) ~= "number" or isSecret(bar) then bar = 12 end
 	return (bar - 1) * 12 + ((set or TS.active()) - 1) * 4 + slot
 end
+TB.actionFor = multiAction
 
 -- Geometry, shared with the options' preview of the bar
 local POP_STEP = 3
@@ -796,6 +797,13 @@ local function expireOpts(c, id)
 end
 TB.expireOpts = expireOpts
 function TB.pickSpell(el) return pickSpell(SLOT[el]) end
+-- A set's pick in a slot, nil where it holds none; nil and true where it can't be told (secret)
+function TB.pickOf(slot, set)
+	local ok, kind, id = ns.try("totem bar: pick", GetActionInfo, multiAction(slot, set))
+	if not ok or isSecret(kind) or isSecret(id) then return nil, true end
+	if kind == "spell" and type(id) == "number" and id > 0 then return id end
+	return nil
+end
 
 -- No mana on v (a slot's look, or the page's header icon): the pick a click casts, in Global's style
 -- (the tint on its own icon); its overlay and ring made the first time
@@ -1711,7 +1719,7 @@ function TB.modeName()
 	for _, m in ipairs(TB.MODES) do if m[1] == cfg().mode then return m[2] end end
 	return "?"
 end
-function TB.pickTexture(el) return C_ActionBar.GetActionTexture(multiAction(SLOT[el])) end
+function TB.pickTexture(el, set) return C_ActionBar.GetActionTexture(multiAction(SLOT[el], set)) end
 function TB.known(el)
 	local ids = {}
 	for _, p in ipairs(slots[el].popout.buttons) do
@@ -1822,10 +1830,11 @@ function TB.debug()
 		or isSecret(ginfo.isOnGCD) and "secret" or tostring(ginfo.isOnGCD)
 	local driver, wants = ns.visibilityDriverOf(bar), visibilityDriver()
 	driver = tostring(driver) .. (driver ~= wants and " (wants " .. tostring(wants) .. ")" or "")
-	ns.say("totem bar mode %s, show %s, driver %s, shown %s, totems known %s, set %d of %d, "
+	ns.say("totem bar mode %s, show %s, driver %s, shown %s, totems known %s, set %d of %d (header %s, picks %s), "
 		.. "earth isOnGCD %s; TotemFrame parent %s alpha %s; Totem Action Bar parent %s",
 		c.mode, c.show, driver, tostring(bar:IsShown()), tostring(hasTotems),
-		TS.active(), TS.count(), g,
+		TS.active(), TS.count(), tostring(picker:GetAttribute("sf-set")),
+		TS.picksRefused() and "refused" or "allowed", g,
 		TotemFrame and TotemFrame:GetParent() and (TotemFrame:GetParent():GetName() or "?") or "none",
 		TotemFrame and string.format("%.2f", TotemFrame:GetAlpha()) or "-",
 		mc and (mc:GetParent() == hiddenParent and "hidden" or (mc:GetParent() and mc:GetParent():GetName() or "?"))
