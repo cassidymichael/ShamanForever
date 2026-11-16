@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Totem bar: the Totem sets options now have a grid where you set the four totems each Call drops ahead of time, and choose which Call's totems the bar uses, even with the Call button hidden.
+- Totem bar: totem sets now switch in combat too, by right-clicking Call, from its set picker, or with the "Next totem set" key. A new option opens the set picker when you hover over Call.
+
 ## 0.16.9 (2026-11-15)
 
 - Totem bar: "Different totem down" has a new "Side" option, so your pick can show above or below the bar (left or right on a vertical bar).
