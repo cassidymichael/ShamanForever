@@ -151,6 +151,8 @@ local RETIRED = {
 	-- default, which a profile from before keeps where it has none
 	defaults = { [9] = { flurry = { on = true }, improvedstormstrike = { on = true },
 		flameshock = { on = true } } },
+	-- Settings split off another, by the share version they came in: holder -> new -> { old, its default }
+	split = { [12] = { totemBar = { setHover = { "pickHover", true } } } },
 }
 
 -- Every sound field under t
@@ -314,7 +316,7 @@ function P.migrate(profile)
 	retireStyles(profile)
 end
 
--- A profile from version v, after P.migrate: the defaults that changed since stay as it had them
+-- A profile from version v, after P.migrate: changed defaults stay as it had them; a split setting takes its old one
 local function keepOldDefaults(profile, v)
 	local opts = profile.elementOpts
 	if v ~= v or v < 0 then v = 0 end
@@ -323,6 +325,17 @@ local function keepOldDefaults(profile, v)
 			if type(opts[key]) ~= "table" then opts[key] = {} end
 			for name, old in pairs(names) do
 				if opts[key][name] == nil then opts[key][name] = old end
+			end
+		end
+		for key, names in pairs(RETIRED.split[at] or {}) do
+			if type(profile[key]) ~= "table" then profile[key] = {} end
+			local t = profile[key]
+			for name, from in pairs(names) do
+				if t[name] == nil then
+					local was = t[from[1]]
+					if type(was) ~= type(from[2]) then was = from[2] end
+					t[name] = was
+				end
 			end
 		end
 	end
