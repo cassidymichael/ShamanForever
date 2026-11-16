@@ -1,5 +1,4 @@
--- Totem bar options: the grid of totem sets, a line for each Call with the four totems it drops,
--- each a button choosing that totem out of combat, and Use on the bar for the set the bar uses
+-- Totem bar options: the grid of each Call's four totems, chosen out of combat, and Use on the bar
 local _, ns = ...
 local W = ns.Widgets
 local OA = ns.OptionsArt
@@ -59,8 +58,7 @@ function TSG.pick(set, slot, spell)
 	return TS.setPick(set, slot, spell)
 end
 
--- Drawn again at a change it shows: a multi-cast action's pick, the multi-cast bar, combat's edges
--- (a switch and a refused pick come through ns.changed)
+-- Drawn again at a pick, the multi-cast bar's update and combat's edges; a switch comes through ns.changed
 local events = CreateFrame("Frame")
 events:SetScript("OnEvent", function(_, event, action)
 	if event == "ACTIONBAR_SLOT_CHANGED" and not ns.isSecret(action) and type(action) == "number" and action ~= 0
@@ -207,8 +205,7 @@ local function paintCell(c, set, el, live, learnedSlot)
 	c:SetEnabled(c.learned and not off)
 end
 
--- The grid, every set in set order: a Call not learned yet greyed with its level, and set 1's totems,
--- the bar's own, editable whatever is learned; once the game refused a pick, the line saying so
+-- Every Call in set order, one not learned greyed; set 1's totems are the bar's own, always editable
 function TSG.build(p)
 	local TB = ns.TotemBar
 	local f = p:row(HEAD_H + #CALLS * LINE_H)

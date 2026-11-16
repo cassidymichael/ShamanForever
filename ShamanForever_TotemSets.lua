@@ -1,6 +1,4 @@
--- Totem sets: each Call drops its own four picks, a page of the multi-cast bar. The totem bar uses
--- one set at a time (its switch header's sf-set), switched in combat too by the header's snippet;
--- the character's choice is saved. Out of combat the options choose a set and write its picks.
+-- Totem sets: each Call's four picks, a page of the multi-cast bar; the bar uses one, the character's choice
 
 local ADDON, ns = ...
 local P = ns.Profiles
@@ -82,7 +80,7 @@ function TS.update(header, knows)
 	return state.known[set] and set or 1
 end
 
--- Out of combat (the options' Use on the bar): the bar laid out again on the chosen set
+-- Use on the bar: out of combat, the bar laid out again on the chosen set
 function TS.switch(set)
 	if not (CALLS[set] and TS.known(set)) or ns.inCombat() then return false end
 	TS.setActive(set, true)
@@ -91,9 +89,7 @@ function TS.switch(set)
 	return true
 end
 
--- A set's pick out of combat (spell 0: none), by SetMultiCastSpell on its action; false where
--- refused before the call. The game refuses one by ADDON_ACTION_FORBIDDEN or _BLOCKED naming the
--- function, not a Lua error: then none is tried again this session, so its dialog shows once.
+-- The game refuses a pick by ADDON_ACTION_FORBIDDEN or _BLOCKED, not a Lua error: no more tries, one dialog
 local refused = false
 function TS.picksRefused() return refused end
 local watch = CreateFrame("Frame")

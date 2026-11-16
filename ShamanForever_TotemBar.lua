@@ -636,8 +636,7 @@ end
 follow(call.button)
 follow(callKey)
 
--- The Call button switches sets, in combat too: right-click, Alt+click, its arrow or hover open a
--- picker of the known sets (picker 5), or right-click goes to the next
+-- The Call button switches sets, in combat too: a picker of the known sets (picker 5), or the next set
 local SET_PICK = 5
 local setSlot = { index = SET_PICK, button = call.button }
 makePicker(setSlot, "Sets")
@@ -673,8 +672,7 @@ for set, id in ipairs(SET_CALL) do
 	wrapHover(p)   -- after its scripts: setting a script later would drop the wrap
 	setSlot.popout.buttons[set] = p
 end
--- Right-click on the release: the next set, or the picker opened or closed (with hover, opened:
--- the mouse is already over it)
+-- Right-click on the release: the next set, or the picker opened or closed (kept open with hover)
 wrapClick(call.button, SLOT_CLICK .. [[
 	if button ~= "RightButton" then return end
 	local i = self:GetAttribute("sf-pick")
