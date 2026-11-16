@@ -66,6 +66,7 @@ ShamanForever_OptionsShock.lua
 ShamanForever_OptionsImbue.lua
 ShamanForever_OptionsMaelstrom.lua
 ShamanForever_OptionsTremor.lua
+ShamanForever_OptionsTotemSets.lua
 ShamanForever_OptionsTotemBar.lua
 Core\OptionsSwing.lua
 ShamanForever_OptionsWindfury.lua

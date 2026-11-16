@@ -45,7 +45,8 @@ TB.DEFAULTS = {
 	keyColor = { 0.85, 0.85, 0.85, 1 },
 	call = true,
 	recall = true,
-	setSwitch = "popout",   -- popout | cycle: how the Call button switches totem sets
+	setSwitch = "popout",   -- popout | cycle: what right-clicking the Call button does
+	setHover = false,   -- the set picker opens on hovering the Call button
 	setNumber = true,
 	extras = "after",   -- ends | before | after the slots
 	extrasScale = 0.8,
@@ -203,6 +204,7 @@ local function multiAction(slot, set)
 	if not ok or type(bar) ~= "number" or isSecret(bar) then bar = 12 end
 	return (bar - 1) * 12 + ((set or TS.active()) - 1) * 4 + slot
 end
+TB.actionFor = multiAction
 
 -- Geometry, shared with the options' preview of the bar
 local POP_STEP = 3
@@ -355,11 +357,11 @@ picker:SetAttribute("sf-open", [[
 		local pop = self:GetFrameRef("pop" .. i)
 		if i == open then pop:Show() else pop:Hide() end
 	end
-	-- Hover mode ("sf-hovermode"): HOVER_LEAVE closes the picker as the mouse leaves its slot and
+	-- Hover mode (each picker's "sf-hover<i>"): HOVER_LEAVE closes the picker as the mouse leaves its slot and
 	-- strip. Blizzard's secure hover driver is a second way: it hides the picker once the mouse has
 	-- been off both for a moment (registering again restarts it). It never counts down if the mouse
 	-- was already gone at its first update (a fast flick), so it can't be the only way.
-	if open > 0 and self:GetAttribute("sf-hovermode") then
+	if open > 0 and self:GetAttribute("sf-hover" .. open) then
 		local pop = self:GetFrameRef("pop" .. open)
 		pop:RegisterAutoHide(0.3)
 		pop:AddToAutoHide(self:GetFrameRef("slot" .. open))
@@ -391,13 +393,13 @@ local PICK_CLICK = [[ return nil, self:GetAttribute("sf-pick") ]]
 local PICK_AFTER = [[ owner:RunAttribute("sf-close", message) ]]
 local HOVER_ENTER = [[
 	local i = self:GetAttribute("sf-pick")
-	if i and owner:GetAttribute("sf-hovermode") then owner:RunAttribute("sf-open", i) end
+	if i and owner:GetAttribute("sf-hover" .. i) then owner:RunAttribute("sf-open", i) end
 ]]
 -- Hover leave closes the picker unless still over the slot or strip. A leave runs only on a frame
 -- whose enter is wrapped too
 local HOVER_LEAVE = [[
 	local i = self:GetAttribute("sf-pick")
-	if not i or not owner:GetAttribute("sf-hovermode") then return end
+	if not i or not owner:GetAttribute("sf-hover" .. i) then return end
 	local pop = owner:GetFrameRef("pop" .. i)
 	if pop:IsShown() and not owner:GetFrameRef("slot" .. i):IsUnderMouse()
 			and not owner:GetFrameRef("strip" .. i):IsUnderMouse() then
@@ -634,19 +636,7 @@ end
 follow(call.button)
 follow(callKey)
 
--- Asked to switch sets while they can't switch
-local cueAt = 0
-local function lockedCue()
-	if TS.switchInCombat() or TS.count() < 2 or not ns.inCombat() then return end
-	if GetTime() - cueAt < 1 then return end
-	cueAt = GetTime()
-	local errors = _G.UIErrorsFrame
-	if errors then errors:AddMessage("Totem sets can't switch in combat", 1, 0.1, 0.1)
-	else ns.say("totem sets can't switch in combat") end
-end
-
--- The Call button switches sets: Alt+click, its arrow or hover open a picker of the known sets
--- (picker 5), or right-click goes to the next
+-- The Call button switches sets, in combat too: a picker of the known sets (picker 5), or the next set
 local SET_PICK = 5
 local setSlot = { index = SET_PICK, button = call.button }
 makePicker(setSlot, "Sets")
@@ -679,21 +669,27 @@ for set, id in ipairs(SET_CALL) do
 		GameTooltip:Show()
 	end)
 	p:SetScript("OnLeave", function() GameTooltip:Hide() end)
-	p:SetScript("PostClick", function(_, button)
-		if button == "LeftButton" and set ~= TS.active() then lockedCue() end
-	end)
 	wrapHover(p)   -- after its scripts: setting a script later would drop the wrap
 	setSlot.popout.buttons[set] = p
 end
+-- Right-click on the release: the next set, or the picker opened or closed (kept open with hover)
 wrapClick(call.button, SLOT_CLICK .. [[
-	if button == "RightButton" and self:GetAttribute("sf-cycle") then
+	if button ~= "RightButton" then return end
+	local i = self:GetAttribute("sf-pick")
+	if self:GetAttribute("sf-cycle") then
 		if not down then owner:RunAttribute("sf-switch", 0) end
 		return false
 	end
+	if not i then return end
+	if not down then
+		if owner:GetFrameRef("pop" .. i):IsShown() and not owner:GetAttribute("sf-hover" .. i) then
+			owner:RunAttribute("sf-close", i)
+		else
+			owner:RunAttribute("sf-open", i)
+		end
+	end
+	return false
 ]])
-call.button:SetScript("PostClick", function(_, button, down)
-	if button == "RightButton" and not down and cfg().setSwitch == "cycle" then lockedCue() end
-end)
 call.num = W.makeKeyText(call.keys)
 call.num:SetTextColor(1, 1, 1)
 
@@ -709,7 +705,6 @@ local nextSet = CreateFrame("Button", "ShamanForeverKeyNextSet", UIParent,
 	"SecureActionButtonTemplate")
 nextSet:RegisterForClicks("AnyDown", "AnyUp")
 wrapClick(nextSet, [[ if not down then owner:RunAttribute("sf-switch", 0) end return false ]])
-nextSet:SetScript("PostClick", function(_, _, down) if not down then lockedCue() end end)
 
 local function refreshKeys()
 	local on = cfg().keys
@@ -800,6 +795,13 @@ local function expireOpts(c, id)
 end
 TB.expireOpts = expireOpts
 function TB.pickSpell(el) return pickSpell(SLOT[el]) end
+-- A set's pick in a slot, nil where it holds none; nil and true where it can't be told (secret)
+function TB.pickOf(slot, set)
+	local ok, kind, id = ns.try("totem bar: pick", GetActionInfo, multiAction(slot, set))
+	if not ok or isSecret(kind) or isSecret(id) then return nil, true end
+	if kind == "spell" and type(id) == "number" and id > 0 then return id end
+	return nil
+end
 
 -- No mana on v (a slot's look, or the page's header icon): the pick a click casts, in Global's style
 -- (the tint on its own icon); its overlay and ring made the first time
@@ -949,20 +951,13 @@ end
 -- The active set: the picker header's sf-set, written by the switch snippet or by writeSet (out of
 -- combat); a hook keeps the plain side in step, in combat too
 local applying = false
--- The Call's icon and number; in combat while sets can't switch, the other sets greyed in its
--- picker
+-- The Call's icon and number, and the active set marked in its picker
 local function paintSets()
 	local set = TS.active()
-	local locked = not TS.switchInCombat() and ns.inCombat()
 	call.vis.icon:SetTexture(C_Spell.GetSpellTexture(SET_CALL[set]))
 	call.num:SetText(set)
 	call.num:SetShown(cfg().setNumber and TS.count() > 1)
-	for i, p in ipairs(setSlot.popout.buttons) do
-		local off = locked and i ~= set
-		p.on:SetShown(i == set)
-		p.icon:SetDesaturated(off)
-		p.icon:SetAlpha(off and 0.5 or 1)
-	end
+	for i, p in ipairs(setSlot.popout.buttons) do p.on:SetShown(i == set) end
 end
 local function setActive(set, chosen)
 	TS.setActive(set, chosen)
@@ -970,7 +965,7 @@ local function setActive(set, chosen)
 	paintSets()
 	refreshSlots()
 	refreshGCD()
-	if chosen and not InCombatLockdown() then ns.changed() end
+	ns.changed()
 end
 picker:HookScript("OnAttributeChanged", function(_, name, value)
 	if name ~= "sf-set" or isSecret(value) or type(value) ~= "number" then return end
@@ -1302,11 +1297,15 @@ function layout()
 		call.num:ClearAllPoints()
 		call.num:SetPoint("BOTTOMRIGHT", -1, 2)
 	end
+	-- Hover opens the slots' pickers and, on its own setting, the set picker
 	local hoverMode = feat("pickHover") and not kbOpen
-	picker:SetAttribute("sf-hovermode", hoverMode)
+	local setHover = pickSet and c.setHover and not kbOpen
+	picker:SetAttribute("sf-hovermode", hoverMode or setHover)
 	for _, s in ipairs({ slots.earth, slots.fire, slots.water, slots.air, setSlot }) do
-		s.popout.catch:SetShown(not hoverMode)
-		s.popout.strip:SetShown(hoverMode)
+		local hovers = (s == setSlot and setHover or s ~= setSlot and hoverMode) and true or false
+		picker:SetAttribute("sf-hover" .. s.index, hovers)
+		s.popout.catch:SetShown(not hovers)
+		s.popout.strip:SetShown(hovers)
 	end
 	for _, s in ipairs(shown) do
 		local b = s.button
@@ -1587,12 +1586,10 @@ for _, e in pairs(extras) do
 			if not knows(e.spell) then GameTooltip:AddLine("Not learned yet", 0.6, 0.6, 0.6) end
 			GameTooltip:AddLine("Right-click: dismiss all totems (no GCD, but no mana returned)", 1, 0.82, 0, true)
 		elseif TS.count() > 1 then
-			if not TS.switchInCombat() and ns.inCombat() then
-				GameTooltip:AddLine("Totem sets switch out of combat", 0.6, 0.6, 0.6)
-			elseif c.setSwitch == "cycle" then
+			if c.setSwitch == "cycle" then
 				GameTooltip:AddLine("Right-click: next totem set", 1, 0.82, 0, true)
 			else
-				GameTooltip:AddLine("Alt+click: choose a totem set", 1, 0.82, 0, true)
+				GameTooltip:AddLine("Right-click or Alt+click: choose a totem set", 1, 0.82, 0, true)
 			end
 		end
 		GameTooltip:Show()
@@ -1686,12 +1683,10 @@ function TB.start()
 	events(barOn())
 	-- Never left over the bar in combat, taking the keyboard
 	ns.onCombatStart(kbLeave)
-	ns.onCombatStart(paintSets)
 	ns.onCombatEnd(function()
 		saidWait = false
 		closePopouts()
 		movable.update()
-		paintSets()
 	end)
 	bar:HookScript("OnShow", function() ticker:Show() end)
 	bar:HookScript("OnHide", function() ticker:Hide() end)
@@ -1722,7 +1717,7 @@ function TB.modeName()
 	for _, m in ipairs(TB.MODES) do if m[1] == cfg().mode then return m[2] end end
 	return "?"
 end
-function TB.pickTexture(el) return C_ActionBar.GetActionTexture(multiAction(SLOT[el])) end
+function TB.pickTexture(el, set) return C_ActionBar.GetActionTexture(multiAction(SLOT[el], set)) end
 function TB.known(el)
 	local ids = {}
 	for _, p in ipairs(slots[el].popout.buttons) do
@@ -1833,10 +1828,11 @@ function TB.debug()
 		or isSecret(ginfo.isOnGCD) and "secret" or tostring(ginfo.isOnGCD)
 	local driver, wants = ns.visibilityDriverOf(bar), visibilityDriver()
 	driver = tostring(driver) .. (driver ~= wants and " (wants " .. tostring(wants) .. ")" or "")
-	ns.say("totem bar mode %s, show %s, driver %s, shown %s, totems known %s, set %d of %d, "
+	ns.say("totem bar mode %s, show %s, driver %s, shown %s, totems known %s, set %d of %d (header %s, picks %s), "
 		.. "earth isOnGCD %s; TotemFrame parent %s alpha %s; Totem Action Bar parent %s",
 		c.mode, c.show, driver, tostring(bar:IsShown()), tostring(hasTotems),
-		TS.active(), TS.count(), g,
+		TS.active(), TS.count(), tostring(picker:GetAttribute("sf-set")),
+		TS.picksRefused() and "refused" or "allowed", g,
 		TotemFrame and TotemFrame:GetParent() and (TotemFrame:GetParent():GetName() or "?") or "none",
 		TotemFrame and string.format("%.2f", TotemFrame:GetAlpha()) or "-",
 		mc and (mc:GetParent() == hiddenParent and "hidden" or (mc:GetParent() and mc:GetParent():GetName() or "?"))
