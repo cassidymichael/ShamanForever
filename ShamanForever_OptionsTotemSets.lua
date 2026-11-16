@@ -74,8 +74,7 @@ ns.registerEvent(events, "UPDATE_MULTI_CAST_ACTIONBAR")
 -- A cell's menu closes as combat starts
 local function closeMenu()
 	local open = Menu and Menu.GetManager and Menu.GetManager():GetOpenMenu()
-	local proxy = open and open.ToProxy and open:ToProxy()
-	if proxy and cells[proxy:GetOwnerRegion()] then proxy:Close() end
+	if open and cells[open:GetOwnerRegion()] then open:Close() end
 end
 ns.onCombatStart(function()
 	ns.try("totem sets: menu", closeMenu)
