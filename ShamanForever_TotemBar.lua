@@ -46,6 +46,7 @@ TB.DEFAULTS = {
 	call = true,
 	recall = true,
 	setSwitch = "popout",   -- popout | cycle: what right-clicking the Call button does
+	setHover = false,   -- the set picker opens on hovering the Call button
 	setNumber = true,
 	extras = "after",   -- ends | before | after the slots
 	extrasScale = 0.8,
@@ -355,11 +356,11 @@ picker:SetAttribute("sf-open", [[
 		local pop = self:GetFrameRef("pop" .. i)
 		if i == open then pop:Show() else pop:Hide() end
 	end
-	-- Hover mode ("sf-hovermode"): HOVER_LEAVE closes the picker as the mouse leaves its slot and
+	-- Hover mode (each picker's "sf-hover<i>"): HOVER_LEAVE closes the picker as the mouse leaves its slot and
 	-- strip. Blizzard's secure hover driver is a second way: it hides the picker once the mouse has
 	-- been off both for a moment (registering again restarts it). It never counts down if the mouse
 	-- was already gone at its first update (a fast flick), so it can't be the only way.
-	if open > 0 and self:GetAttribute("sf-hovermode") then
+	if open > 0 and self:GetAttribute("sf-hover" .. open) then
 		local pop = self:GetFrameRef("pop" .. open)
 		pop:RegisterAutoHide(0.3)
 		pop:AddToAutoHide(self:GetFrameRef("slot" .. open))
@@ -391,13 +392,13 @@ local PICK_CLICK = [[ return nil, self:GetAttribute("sf-pick") ]]
 local PICK_AFTER = [[ owner:RunAttribute("sf-close", message) ]]
 local HOVER_ENTER = [[
 	local i = self:GetAttribute("sf-pick")
-	if i and owner:GetAttribute("sf-hovermode") then owner:RunAttribute("sf-open", i) end
+	if i and owner:GetAttribute("sf-hover" .. i) then owner:RunAttribute("sf-open", i) end
 ]]
 -- Hover leave closes the picker unless still over the slot or strip. A leave runs only on a frame
 -- whose enter is wrapped too
 local HOVER_LEAVE = [[
 	local i = self:GetAttribute("sf-pick")
-	if not i or not owner:GetAttribute("sf-hovermode") then return end
+	if not i or not owner:GetAttribute("sf-hover" .. i) then return end
 	local pop = owner:GetFrameRef("pop" .. i)
 	if pop:IsShown() and not owner:GetFrameRef("slot" .. i):IsUnderMouse()
 			and not owner:GetFrameRef("strip" .. i):IsUnderMouse() then
@@ -682,7 +683,7 @@ wrapClick(call.button, SLOT_CLICK .. [[
 	end
 	if not i then return end
 	if not down then
-		if owner:GetFrameRef("pop" .. i):IsShown() and not owner:GetAttribute("sf-hovermode") then
+		if owner:GetFrameRef("pop" .. i):IsShown() and not owner:GetAttribute("sf-hover" .. i) then
 			owner:RunAttribute("sf-close", i)
 		else
 			owner:RunAttribute("sf-open", i)
@@ -1290,11 +1291,15 @@ function layout()
 		call.num:ClearAllPoints()
 		call.num:SetPoint("BOTTOMRIGHT", -1, 2)
 	end
+	-- Hover opens the slots' pickers and, on its own setting, the set picker
 	local hoverMode = feat("pickHover") and not kbOpen
-	picker:SetAttribute("sf-hovermode", hoverMode)
+	local setHover = pickSet and c.setHover and not kbOpen
+	picker:SetAttribute("sf-hovermode", hoverMode or setHover)
 	for _, s in ipairs({ slots.earth, slots.fire, slots.water, slots.air, setSlot }) do
-		s.popout.catch:SetShown(not hoverMode)
-		s.popout.strip:SetShown(hoverMode)
+		local hovers = (s == setSlot and setHover or s ~= setSlot and hoverMode) and true or false
+		picker:SetAttribute("sf-hover" .. s.index, hovers)
+		s.popout.catch:SetShown(not hovers)
+		s.popout.strip:SetShown(hovers)
 	end
 	for _, s in ipairs(shown) do
 		local b = s.button

@@ -527,8 +527,12 @@ local function build(p)
 	p:add(setsRow, 22)
 	p:text("Each Call drops its own set of four totems. The bar uses one set at a time: its slots, "
 		.. "picks, Call button and keys.")
-	p:dropdown("Right-click Call", nil, { { "popout", "Opens a picker" }, { "cycle", "Goes to the next set" } },
-		tget("setSwitch"), tset("setSwitch"), nil, 240)
+	local right = p:dropdown("Right-click Call", nil,
+		{ { "popout", "Opens a picker" }, { "cycle", "Goes to the next set" } }, tget("setSwitch"), tset("setSwitch"),
+		nil, 240)
+	p:sub(right, function() return c().setSwitch == "popout" end, function()
+		p:checkbox("Open the set picker on hover", nil, tget("setHover"), tset("setHover"))
+	end)
 	p:checkbox("Show set number", "On the Call button.", tget("setNumber"), tset("setNumber"))
 	p:text("Key: Next totem set.")
 
