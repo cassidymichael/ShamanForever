@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- New: Windfury proc alerts. An alert on screen when Windfury Weapon or Windfury Totem procs, each with its own text, icon, sound, size, animation and place, and a sound channel of their own. Off by default: turn it on from its new page in the options.
+
 ## 0.16.9 (2026-11-15)
 
 - Totem bar: "Different totem down" has a new "Side" option, so your pick can show above or below the bar (left or right on a vertical bar).

@@ -119,17 +119,20 @@ end
 -- element's: profiles drop a saved value it doesn't list), on() (it is in use:
 -- its styles are offered), parts (style parts it can have its own of), ownLabel(part) (its name when
 -- it draws that style itself); movable (from ns.Positioning.mover: frame, nudge(dx, dy), lock(),
--- update(); a right-click on it opens the bar's page); hud = { show(opts), slots, steps(slot, mode),
--- step(slot, state, at, range, moment) }: /sf preview on the bar itself, show(nil) as it ends, each
--- slot looping through its steps like an element, step returning when it ends; secure: its frames are
+-- update(); a right-click on it opens the bar's page); boxes() (where its frames are, each { point,
+-- x, y, width, height }, for a bar whose place isn't its cfg()'s point, x, y and scale); hud =
+-- { show(opts), slots, steps(slot, mode), step(slot, state, at, range, moment) }: /sf preview on
+-- the bar itself, show(nil) as it ends, each slot looping through its steps like an element, step
+-- returning when it ends; secure: its frames are
 -- protected (its top frame's parent is Bars.parent(true)); whileOff = { frame, noun(), stays() }: a
 -- protected frame shown while off and hidden while on (by the on-off toggle in combat too, else out of
 -- combat), how a sentence names what it brings back (nil when it brings nothing back now), and what
 -- stays on screen while on until combat ends (nil when nothing does).
 -- Options: icon, school, blurb, tags() and preview (its page header: a stage, as _Kinds says); page
--- = { order, build } (titled and iconned as the bar); experiments = { { name, where } } (About's
--- list); ownSize() (its icon size isn't Global's); tiles = { icon, schools, border() } (its style
--- blocks' sample tiles: their icon, the schools they show (else all), their border; none: no tiles)
+-- = { order, build } (titled and iconned as the bar); experimental (the whole bar's name: a badge in
+-- its page header and a line in About's list); experiments = { { name, where } } (About's list);
+-- ownSize() (its icon size isn't Global's); tiles = { icon, schools, border() } (its style blocks'
+-- sample tiles: their icon, the schools they show (else all), their border; none: no tiles)
 local BARS, BAR_ORDER = {}, {}
 -- The on-off toggle's header and the bars' whileOff entries (below)
 local toggleHead
@@ -827,7 +830,11 @@ local function settleFresh()
 			end
 			for _, key in ipairs(BAR_ORDER) do
 				local bar = BARS[key]
-				if bar.movable and bar.cfg and (not bar.on or bar.on()) then
+				if bar.boxes and (not bar.on or bar.on()) then
+					for _, o in ipairs(bar.boxes()) do
+						table.insert(list, onScreen(boxAt(o[1], o[2], o[3], o[4], o[5])))
+					end
+				elseif bar.movable and bar.cfg and (not bar.on or bar.on()) then
 					local c = bar.cfg()
 					local w, h = bar.movable.frame:GetSize()
 					table.insert(list, onScreen(boxAt(c.point, c.x, c.y, w * c.scale, h * c.scale)))

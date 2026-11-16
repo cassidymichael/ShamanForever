@@ -386,6 +386,7 @@ local function buildAbout(p)
 	p:experimental("Art frames", "Art frame and Group art frame styles")
 	for _, key in ipairs(Bars.list()) do
 		local bar = Bars.get(key)
+		if bar.experimental then p:experimental(bar.experimental, bar.label) end
 		for _, x in ipairs(bar.experiments or {}) do
 			p:experimental(x[1], bar.label .. " > " .. x[2])
 		end

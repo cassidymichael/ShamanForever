@@ -1000,16 +1000,17 @@ local function check(p, s, name, field, label, tip, shown, link)
 	if link or LINKED[field] then styleLink(p, row, link or LINKED[field], get) end
 	return row
 end
--- A sound menu with Play beside it; choices(current): its list
-local function soundPicker(p, label, tip, get, set, shown, choices)
+-- A sound menu with Play beside it; choices(current): its list; channel(): where it plays, else Global's
+local function soundPicker(p, label, tip, get, set, shown, choices, channel)
 	local SN = ns.Sounds
+	local function test(v) SN.test(v, channel and channel()) end
 	local row = p:dropdown(label, tip, function() return choices(get()) end, function() return get() or "none" end,
-		function(v) set(v); SN.test(v) end, shown, 200)
+		function(v) set(v); test(v) end, shown, 200)
 	local play = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
 	play:SetSize(60, 22)
 	play:SetPoint("LEFT", row.dropdown, "RIGHT", 8, 0)
 	play:SetText("Play")
-	play:SetScript("OnClick", function() SN.test(get()) end)
+	play:SetScript("OnClick", function() test(get()) end)
 	local item = p.items[#p.items]
 	local refresh = item.refresh
 	item.refresh = function()
@@ -1342,7 +1343,7 @@ K.reagentBlock, K.noneLeftBlock = reagentBlock, noneLeftBlock
 K.soundsBlock, K.groupMenu = soundsBlock, groupMenu
 K.warnBlock, K.readyBlock, K.activeBlock, K.expiringBlock, K.killedBlock = warnBlock, readyBlock, activeBlock,
 	expiringBlock, killedBlock
-K.ranOutBlock, K.soundBlock = ranOutBlock, soundBlock
+K.ranOutBlock, K.soundBlock, K.soundPicker = ranOutBlock, soundBlock, soundPicker
 
 -- A parts page's builders: a slot's block, fn(p, def, words) (style: it goes in the Style section),
 -- and a block a part asks for in the own slot, fn(p, def, spec), with its warning, warning(p, def,

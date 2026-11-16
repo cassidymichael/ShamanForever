@@ -53,6 +53,7 @@ ShamanForever_TotemBar.lua
 ShamanForever_TotemRange.lua
 ShamanForever_TotemSkins.lua
 Core\Swing.lua
+ShamanForever_Windfury.lua
 Core\OptionsArt.lua
 Core\Preview.lua
 Core\OptionsPage.lua
@@ -67,6 +68,7 @@ ShamanForever_OptionsMaelstrom.lua
 ShamanForever_OptionsTremor.lua
 ShamanForever_OptionsTotemBar.lua
 Core\OptionsSwing.lua
+ShamanForever_OptionsWindfury.lua
 Core\OptionsStyles.lua
 Core\OptionsGuide.lua
 ShamanForever_OptionsGuide.lua
