@@ -20,7 +20,7 @@ local SAVED = ns.NAME .. "DB"
 local DEFAULT_PROFILE = "Default"
 P.DEFAULT_NAME = DEFAULT_PROFILE
 -- Share strings carry it: one from a newer version is refused
-local SHARE_VERSION = 11
+local SHARE_VERSION = 12
 
 -- Element settings (db.elementOpts[key]). A state or event is a table of fields, named the same on
 -- every element; an element's defaults declare the fields it has, and pages offer those.
