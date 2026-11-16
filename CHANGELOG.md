@@ -3,7 +3,8 @@
 ## Unreleased
 
 - Totem bar: the Totem sets options now have a grid where you set the four totems each Call drops ahead of time, and choose which Call's totems the bar uses, even with the Call button hidden.
-- Totem bar: totem sets now switch in combat too, by right-clicking Call, from its set picker, or with the "Next totem set" key. A new option opens the set picker when you hover over Call.
+- Totem bar: totem sets now switch in combat too, by right-clicking Call, from its set picker, or with the "Next totem set" key.
+- Totem sets options: "Switch sets" is now "Right-click Call", and with "Opens a picker" right-clicking Call opens the set picker. Opening the set picker by hovering over Call has its own option, "Open the set picker on hover", kept on if you had "Open pickers on hover" on.
 
 ## 0.16.9 (2026-11-15)
 
