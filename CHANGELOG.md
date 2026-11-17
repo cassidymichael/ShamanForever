@@ -2,11 +2,11 @@
 
 ## Unreleased
 
-- New: Windfury proc alerts. An alert on screen when Windfury Weapon or Windfury Totem procs, each with its own text, icon, sound, size, animation and place, and a sound channel of their own. Off by default: turn it on from its new page in the options.
+- New: Windfury proc alerts. An alert on screen, with a sound if you pick one, each time Windfury Weapon or Windfury Totem procs. Each alert has its own text, icon, size, animation and place. Off by default: turn it on from its new page in the options.
+- Totem bar: set up the four totems each Call drops ahead of time, in a new grid under Totem sets, and choose which Call's totems the bar uses.
+- Totem bar: totem sets now switch in combat too, by right-clicking Call, from its set picker, or with the "Next totem set" key binding.
 - New sounds to pick from: five bonks and three lightsaber sounds.
-- Totem bar: the Totem sets options now have a grid where you set the four totems each Call drops ahead of time, and choose which Call's totems the bar uses, even with the Call button hidden.
-- Totem bar: totem sets now switch in combat too, by right-clicking Call, from its set picker, or with the "Next totem set" key.
-- Totem sets options: "Switch sets" is now "Right-click Call", and with "Opens a picker" right-clicking Call opens the set picker. Opening the set picker by hovering over Call has its own option, "Open the set picker on hover". It is on, unless you had turned "Open pickers on hover" off.
+- Many other minor fixes and improvements, including a new "Open the set picker on hover" option.
 
 ## 0.16.9 (2026-11-15)
 
