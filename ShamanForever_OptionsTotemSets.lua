@@ -1,4 +1,4 @@
--- Totem bar options: the grid of each Call's four totems, chosen out of combat, and Use on the bar
+-- Totem sets grid
 local _, ns = ...
 local W = ns.Widgets
 local OA = ns.OptionsArt
@@ -30,7 +30,6 @@ function TSG.notYet(set)
 	return string.format("%s isn't learned yet. It can be learned at level %d.", callName(set), TS.LEVELS[set])
 end
 
--- A cell's menu: No totem, then each totem of its element you know, the set's pick checked
 local cells = setmetatable({}, { __mode = "k" })
 local function openMenu(c)
 	if not (MenuUtil and MenuUtil.CreateContextMenu) then return end
@@ -49,7 +48,6 @@ local function openMenu(c)
 	end)
 end
 
--- A menu opened before a pull and used in combat says why nothing changed
 function TSG.pick(set, slot, spell)
 	if ns.inCombat() then
 		ns.say(TSG.WORDS.fighting)
@@ -58,7 +56,6 @@ function TSG.pick(set, slot, spell)
 	return TS.setPick(set, slot, spell)
 end
 
--- Drawn again at a pick, the multi-cast bar's update and combat's edges; a switch comes through ns.changed
 local events = CreateFrame("Frame")
 events:SetScript("OnEvent", function(_, event, action)
 	if event == "ACTIONBAR_SLOT_CHANGED" and not ns.isSecret(action) and type(action) == "number" and action ~= 0
@@ -69,7 +66,6 @@ events:SetScript("OnEvent", function(_, event, action)
 end)
 ns.registerEvent(events, "ACTIONBAR_SLOT_CHANGED")
 ns.registerEvent(events, "UPDATE_MULTI_CAST_ACTIONBAR")
--- A cell's menu closes as combat starts
 local function closeMenu()
 	local open = Menu and Menu.GetManager and Menu.GetManager():GetOpenMenu()
 	if open and cells[open:GetOwnerRegion()] then open:Close() end
@@ -194,7 +190,6 @@ local function paintCell(c, set, el, live, learnedSlot)
 	if pick then
 		c.icon:SetTexture(texture(pick))
 	elseif unknown then
-		-- Can't be read (secret): its action's own picture, handed as it is
 		c.icon:SetTexture(ns.TotemBar.pickTexture(el, set))
 	else
 		c.icon:SetTexture(nil)
@@ -205,7 +200,6 @@ local function paintCell(c, set, el, live, learnedSlot)
 	c:SetEnabled(c.learned and not off)
 end
 
--- Every Call in set order, one not learned greyed; set 1's totems are the bar's own, always editable
 function TSG.build(p)
 	local TB = ns.TotemBar
 	local f = p:row(HEAD_H + #CALLS * LINE_H)
@@ -225,7 +219,6 @@ function TSG.build(p)
 		local cols = TB.cfg().order
 		local any = {}
 		for _, el in ipairs(cols) do any[el] = #ns.Totems.knownTotems(TB.SLOT[el]) > 0 end
-		-- The cells and the button at the right, the Call's name taking what is left
 		local cellsW = 4 * CELL + 3 * CELL_GAP
 		local cellX = math.max(NAME_X + 110, math.min(NAME_X + 200, width - cellsW - USE_W - 16))
 		for i, el in ipairs(cols) do

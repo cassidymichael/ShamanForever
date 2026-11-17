@@ -45,7 +45,7 @@ TB.DEFAULTS = {
 	keyColor = { 0.85, 0.85, 0.85, 1 },
 	call = true,
 	recall = true,
-	setSwitch = "popout",   -- popout | cycle: what right-clicking the Call button does
+	setSwitch = "popout",   -- popout | cycle
 	setHover = true,
 	setNumber = true,
 	extras = "after",   -- ends | before | after the slots
@@ -357,7 +357,7 @@ picker:SetAttribute("sf-open", [[
 		local pop = self:GetFrameRef("pop" .. i)
 		if i == open then pop:Show() else pop:Hide() end
 	end
-	-- Hover mode (each picker's "sf-hover<i>"): HOVER_LEAVE closes the picker as the mouse leaves its slot and
+	-- Hover mode: HOVER_LEAVE closes the picker as the mouse leaves its slot and
 	-- strip. Blizzard's secure hover driver is a second way: it hides the picker once the mouse has
 	-- been off both for a moment (registering again restarts it). It never counts down if the mouse
 	-- was already gone at its first update (a fast flick), so it can't be the only way.
@@ -636,7 +636,7 @@ end
 follow(call.button)
 follow(callKey)
 
--- The Call button switches sets, in combat too: a picker of the known sets (picker 5), or the next set
+-- The set picker
 local SET_PICK = 5
 local setSlot = { index = SET_PICK, button = call.button }
 makePicker(setSlot, "Sets")
@@ -672,7 +672,6 @@ for set, id in ipairs(SET_CALL) do
 	wrapHover(p)   -- after its scripts: setting a script later would drop the wrap
 	setSlot.popout.buttons[set] = p
 end
--- Right-click on the release: the next set, or the picker opened or closed (kept open with hover)
 wrapClick(call.button, SLOT_CLICK .. [[
 	if button ~= "RightButton" then return end
 	local i = self:GetAttribute("sf-pick")
@@ -795,7 +794,6 @@ local function expireOpts(c, id)
 end
 TB.expireOpts = expireOpts
 function TB.pickSpell(el) return pickSpell(SLOT[el]) end
--- A set's pick in a slot, nil where it holds none; nil and true where it can't be told (secret)
 function TB.pickOf(slot, set)
 	local ok, kind, id = ns.try("totem bar: pick", GetActionInfo, multiAction(slot, set))
 	if not ok or isSecret(kind) or isSecret(id) then return nil, true end
@@ -951,7 +949,6 @@ end
 -- The active set: the picker header's sf-set, written by the switch snippet or by writeSet (out of
 -- combat); a hook keeps the plain side in step, in combat too
 local applying = false
--- The Call's icon and number, and the active set marked in its picker
 local function paintSets()
 	local set = TS.active()
 	call.vis.icon:SetTexture(C_Spell.GetSpellTexture(SET_CALL[set]))
@@ -1297,7 +1294,6 @@ function layout()
 		call.num:ClearAllPoints()
 		call.num:SetPoint("BOTTOMRIGHT", -1, 2)
 	end
-	-- Hover opens the slots' pickers and, on its own setting, the set picker
 	local hoverMode = feat("pickHover") and not kbOpen
 	local setHover = pickSet and c.setHover and not kbOpen
 	picker:SetAttribute("sf-hovermode", hoverMode or setHover)

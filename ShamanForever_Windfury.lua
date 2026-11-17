@@ -9,17 +9,15 @@ local Spells, SN = ns.Spells, ns.Sounds
 local WF = { name = "windfury" }
 ns.Windfury = WF
 
--- The procs' spells; any spell the client names Windfury Weapon or Windfury Totem counts too
 local PROC = {
 	[439431] = "weapon", [439440] = "weapon", [439441] = "weapon", [461636] = "weapon",
 	[8233] = "weapon", [8236] = "weapon", [10484] = "weapon", [16361] = "weapon", [16363] = "weapon",
 	[8516] = "totem", [10608] = "totem", [10610] = "totem",
 }
--- What the enchant equips: a global cooldown can name it
 local EQUIPPED = 439431
 local WEAPON, TOTEM = 8232, 8512
 
--- The alerts, in the page's order: key, the spell it shows (its name and icon), its icon's file, its English name
+-- key, spell, icon file, fallback name
 local ALERTS = {
 	{ "weapon", WEAPON, 136018, "Windfury Weapon" },
 	{ "totem", TOTEM, 136114, "Windfury Totem" },
@@ -54,7 +52,6 @@ for i, a in ipairs(ALERTS) do
 	WF.RANGES[a[1]], WF.CHOICES[a[1]] = ALERT_RANGES, ALERT_CHOICES
 end
 
--- What the profile's cleaning can't declare, once per saved table
 local cfgTable
 local function cfg()
 	local t = P.getDB().windfury
@@ -73,7 +70,6 @@ WF.cfg = cfg
 
 function WF.isOn() return E.isActive() and cfg().enabled == true end
 
--- Its own channel, nil for Global's
 function WF.channel()
 	local c = cfg().channel
 	return c ~= "profile" and c or nil
@@ -87,7 +83,6 @@ local function icon(id)
 	return plain(safe(C_Spell.GetSpellTexture, a[2])) or a[3]
 end
 
--- frame: its place; body: the alert itself, shown and faded by its group
 function WF.makeAlert(parent, id, onFinished)
 	local f = CreateFrame("Frame", nil, parent)
 	f:SetSize(BOX_W, BOX_H)
@@ -118,7 +113,6 @@ function WF.makeAlert(parent, id, onFinished)
 	return a
 end
 
--- The text and the icon against the box's side the alert aligns to, the icon on its side of the text
 local GAP = 6
 local SIDE = { left = "LEFT", center = "CENTER", right = "RIGHT" }
 local function arrange(a, c)
@@ -156,7 +150,6 @@ local function arrange(a, c)
 	end
 end
 
--- c: the alert's settings
 function WF.dress(a, c)
 	ns.Media.setFont(a.text, WF.name, c.size)
 	a.text:SetText(c.text ~= "" and c.text or WF.TEXT)
@@ -173,21 +166,18 @@ function WF.dress(a, c)
 	a.pop:SetScaleFrom(pop, pop)
 	a.drift:SetOffset(0, c.drift)
 	a.drift:SetDuration(c.time)
-	-- The fade is the last part of its time; none still ends the alert, in a moment
 	local fade = math.max(math.min(c.fade, c.time), 0.01)
 	a.fade:SetFromAlpha(c.opacity)
 	a.fade:SetDuration(fade)
 	a.fade:SetStartDelay(c.time - fade)
 end
 
--- Standing still, nothing playing
 function WF.still(a, c)
 	a.group:Stop()
 	a.body:SetAlpha(c.opacity)
 	a.body:Show()
 	a.frame:Show()
 end
--- Once, as at a proc
 function WF.play(a, c)
 	a.frame:Show()
 	a.body:SetAlpha(c.opacity)
@@ -199,7 +189,6 @@ end
 local alerts = {}
 local previewing = false
 local function standing() return previewing or not P.getAccount().locked end
--- An alert standing while positioning is unlocked or the preview is on, else away once its proc's alert ends
 local function restOne(id)
 	local a, c = alerts[id], cfg()[id]
 	local on = WF.isOn() and c.shown
@@ -218,7 +207,6 @@ for _, s in ipairs(ALERTS) do
 	alerts[id] = WF.makeAlert(Bars.parent(), id, function() restOne(id) end)
 end
 
--- onDemand: the page's Test, shown and heard while positioning is unlocked or the preview is on
 local function show(id, onDemand)
 	local a, c = alerts[id], cfg()[id]
 	if not (WF.isOn() and c.shown) or ns.cantAct() then return end
@@ -227,14 +215,12 @@ local function show(id, onDemand)
 	if onDemand then SN.test(c.sound, WF.channel()) else SN.playEach(c.sound, WF.channel()) end
 end
 
--- Each alert that is on, with its sound, once
 function WF.test()
 	if not WF.isOn() then return false end
 	for _, s in ipairs(ALERTS) do show(s[1], true) end
 	return true
 end
 
--- Two events for one alert in the same frame are one proc
 local firedAt, counts = {}, { weapon = 0, totem = 0 }
 local function fire(kind)
 	local now = GetTime()
@@ -253,7 +239,6 @@ local function wfNames()
 	end
 	return names
 end
--- An answer kept per ID (wiped past 256)
 local isWf, cached = {}, 0
 local function isWindfury(id)
 	local v = isWf[id]
@@ -270,15 +255,12 @@ local function isWindfury(id)
 	isWf[id], cached = v, cached + 1
 	return v
 end
--- A spell known only by the client's name goes by that name
 local function kindOf(id)
 	local kind = PROC[id]
 	if kind then return kind end
 	local n, list = Spells.nameOf(id), wfNames()
 	return n ~= nil and list ~= nil and n == list[2] and "totem" or "weapon"
 end
--- Your own spell (the imbue's and the totem's carry Windfury's names), never its proc. By ID only: a proc's spell
--- has the name of the spell that gives it
 local function known(id)
 	local book = C_SpellBook
 	if not book then return false end
@@ -316,7 +298,7 @@ function WF.apply()
 end
 WF.afterGroups = layout
 
--- Positioning: each alert its own mover; the wheel sets its text size
+-- Positioning
 for i, s in ipairs(ALERTS) do
 	local id, label = s[1], WF.label(i)
 	movers[id] = ns.Positioning.mover({ frame = alerts[id].frame, label = label .. " alert",
@@ -325,7 +307,6 @@ for i, s in ipairs(ALERTS) do
 		describe = function() return string.format("%s alert: text size %d", label, cfg()[id].size) end })
 end
 
--- Each alert that is on, where a fresh group keeps clear of it
 local placed = {}
 local function boxes()
 	wipe(placed)
@@ -336,7 +317,7 @@ local function boxes()
 	return placed
 end
 
--- /sf preview: each alert standing as it looks
+-- /sf preview
 local function showPreview(opts)
 	previewing = opts ~= nil
 	rest()

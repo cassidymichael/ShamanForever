@@ -1,4 +1,4 @@
--- Totem sets: each Call's four picks, a page of the multi-cast bar; the bar uses one, the character's choice
+-- Totem sets
 
 local ADDON, ns = ...
 local P = ns.Profiles
@@ -6,7 +6,7 @@ local P = ns.Profiles
 local TS = {}
 ns.TotemSets = TS
 
--- By set: its Call's spell key and ID, and the level it's learned at
+-- By set
 local CALL_KEYS = { "call", "callAncestors", "callSpirits" }
 local CALLS = {}
 for i, key in ipairs(CALL_KEYS) do
@@ -80,7 +80,6 @@ function TS.update(header, knows)
 	return state.known[set] and set or 1
 end
 
--- Use on the bar: out of combat, the bar laid out again on the chosen set
 function TS.switch(set)
 	if not (CALLS[set] and TS.known(set)) or ns.inCombat() then return false end
 	TS.setActive(set, true)
@@ -89,7 +88,6 @@ function TS.switch(set)
 	return true
 end
 
--- The game refuses a pick by ADDON_ACTION_FORBIDDEN or _BLOCKED, not a Lua error: no more tries, one dialog
 local refused = false
 function TS.picksRefused() return refused end
 local watch = CreateFrame("Frame")

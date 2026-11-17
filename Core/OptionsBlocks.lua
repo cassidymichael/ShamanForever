@@ -1000,7 +1000,7 @@ local function check(p, s, name, field, label, tip, shown, link)
 	if link or LINKED[field] then styleLink(p, row, link or LINKED[field], get) end
 	return row
 end
--- A sound menu with Play beside it; choices(current): its list; channel(): where it plays, else Global's
+-- A sound menu with Play beside it; choices(current): its list
 local function soundPicker(p, label, tip, get, set, shown, choices, channel)
 	local SN = ns.Sounds
 	local function test(v) SN.test(v, channel and channel()) end

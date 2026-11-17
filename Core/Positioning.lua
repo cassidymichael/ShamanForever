@@ -307,10 +307,9 @@ local function selectMovable(m)
 end
 
 -- A bar's mover: a box over it while unlocked that drags (snapping), wheels, nudges and locks it.
--- spec: frame (the bar), label, cfg() (point, x, y, and scale and alpha where it has them), ranges,
--- size (the plain wheel, as wheel() takes it), shown() (it can be placed now), place() (lay it out
--- again), describe() (the label after a wheel step), lock() (combat started). A right-click opens the
--- bar's page.
+-- spec: frame (the bar), label, cfg() (point, x, y, optional scale and alpha), ranges, size (the plain wheel,
+-- as wheel() takes it), shown() (it can be placed now), place() (lay it out again), describe() (the
+-- label after a wheel step), lock() (combat started). A right-click opens the bar's page.
 -- Returns the movable for ns.Bars.register, with update() for the bar's layout.
 function PO.mover(spec)
 	local f = spec.frame

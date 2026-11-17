@@ -73,7 +73,6 @@ function SN.channel()
 	return CHANNEL_OK[c] and c or "Master"
 end
 
--- channel: in place of Global's
 local function emit(value, channel)
 	local how, what = resolve(value)
 	channel = channel or SN.channel()
@@ -101,7 +100,6 @@ function SN.element(key, event, zoning, gap)
 	if E.inUse(key) then SN.play(E.setting(key, event, "sound"), key .. ":" .. event, gap, zoning) end
 end
 
--- Every play heard, none skipped for following another closely
 function SN.playEach(value, channel)
 	if not resolve(value) or not E.isActive() or ns.isOff() or ns.cantAct() then return end
 	emit(value, channel)

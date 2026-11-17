@@ -519,7 +519,6 @@ local function build(p)
 			ns.Spells.name("call"), ns.Spells.name("recall"))
 	end)
 
-	-- The grid for every Call; the Call button's own rows once a second Call is known, while it's on the bar
 	p:header("Totem sets")
 	local setsRow = p:row(22)
 	ns.OptionsArt.expBadge(setsRow, "Totem sets"):SetPoint("LEFT", setsRow, "LEFT", LABEL_W, 0)

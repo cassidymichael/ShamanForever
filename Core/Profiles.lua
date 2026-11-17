@@ -151,7 +151,7 @@ local RETIRED = {
 	-- default, which a profile from before keeps where it has none
 	defaults = { [9] = { flurry = { on = true }, improvedstormstrike = { on = true },
 		flameshock = { on = true } } },
-	-- Settings split off another, by the share version they came in: holder -> new -> { old, its default }
+	-- Split settings, by share version: holder -> new -> { old, its default }
 	split = { [12] = { totemBar = { setHover = { "pickHover", true } } } },
 }
 
@@ -316,7 +316,7 @@ function P.migrate(profile)
 	retireStyles(profile)
 end
 
--- A profile from version v, after P.migrate: changed defaults stay as it had them; a split setting takes its old one
+-- A profile from version v, after P.migrate: the defaults that changed since stay as it had them
 local function keepOldDefaults(profile, v)
 	local opts = profile.elementOpts
 	if v ~= v or v < 0 then v = 0 end

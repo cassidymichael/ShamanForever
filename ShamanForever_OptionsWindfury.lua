@@ -1,4 +1,4 @@
--- Windfury proc alerts options page
+-- Windfury proc alerts options
 
 local _, ns = ...
 local Bars = ns.Bars
@@ -14,7 +14,7 @@ local SIDES = { { "left", "Left of the text" }, { "right", "Right of the text" }
 local CHANNELS = { { "profile", "Same as the rest of " .. ns.NAME }, { "Master", "Master" }, { "SFX", "Sound effects" },
 	{ "Music", "Music" }, { "Ambience", "Ambience" }, { "Dialog", "Dialog" } }
 
--- Header: each alert on the stage, standing as it looks; picked, it plays once
+-- Header
 local PREVIEW = {
 	stage = true, heroH = 170,
 	states = {},
@@ -70,7 +70,6 @@ local function build(p)
 		p:owns({ bar = KEY, name = key, after = changed })
 		return function(v) c()[key] = v; changed() end
 	end
-	-- An alert's own setting (id: its key)
 	local function aget(id, field) return function() return c()[id][field] end end
 	local function aset(id, field)
 		p:owns({ bar = KEY, name = id, field = field, after = changed })
