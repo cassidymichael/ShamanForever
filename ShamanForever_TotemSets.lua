@@ -1,22 +1,19 @@
--- Totem sets: each Call drops its own four picks, a page of the multi-cast bar. The totem bar uses
--- one set at a time (its switch header's sf-set); the character's choice is saved.
+-- Totem sets
 
-local _, ns = ...
+local ADDON, ns = ...
 local P = ns.Profiles
 
 local TS = {}
 ns.TotemSets = TS
 
--- By set: its Call's spell ID
+-- By set
+local CALL_KEYS = { "call", "callAncestors", "callSpirits" }
 local CALLS = {}
-for i, key in ipairs({ "call", "callAncestors", "callSpirits" }) do
+for i, key in ipairs(CALL_KEYS) do
 	CALLS[i] = ns.Spells.DEFS[key].ids[1]
 end
-TS.CALLS = CALLS
-
--- false: the set can't switch in combat; true: it can, through the switch snippet
-local SWITCH_IN_COMBAT = false
-function TS.switchInCombat() return SWITCH_IN_COMBAT end
+TS.CALLS, TS.CALL_KEYS = CALLS, CALL_KEYS
+TS.LEVELS = { 20, 30, 40 }
 
 local state = { active = 1, count = 1, known = { true } }
 for set = 2, #CALLS do state.known[set] = false end
@@ -28,8 +25,6 @@ function TS.known(set) return state.known[set] == true end
 -- action or spell, kept on it as sf-action<set> and sf-spell<set>; sf-set is written last
 local SWITCH = string.format([[
 	local want = ...
-	local fighting = SecureCmdOptionParse("[combat] 1; 0") == "1"
-	if fighting and not self:GetAttribute("sf-incombat") then return end
 	local set = self:GetAttribute("sf-set") or 1
 	if want == 0 then
 		want = set
@@ -54,7 +49,6 @@ function TS.prime(header)
 	header:SetAttribute("sf-switch", SWITCH)
 	header:SetAttribute("sf-set", 1)
 	header:SetAttribute("sf-known1", true)
-	header:SetAttribute("sf-incombat", SWITCH_IN_COMBAT)
 end
 
 -- The plain side's set; chosen: the player's choice, saved for the character
@@ -84,4 +78,38 @@ function TS.update(header, knows)
 	end
 	local set = state.wanted or 1
 	return state.known[set] and set or 1
+end
+
+function TS.switch(set)
+	if not (CALLS[set] and TS.known(set)) or ns.inCombat() then return false end
+	TS.setActive(set, true)
+	ns.TotemBar.layout()
+	ns.changed()
+	return true
+end
+
+local refused = false
+function TS.picksRefused() return refused end
+local watch = CreateFrame("Frame")
+watch:SetScript("OnEvent", function(_, _, addon, fn)
+	if refused or ns.isSecret(addon) or ns.isSecret(fn) or addon ~= ADDON or type(fn) ~= "string"
+		or not fn:find("SetMultiCastSpell", 1, true) then
+		return
+	end
+	refused = true
+	ns.changed()
+end)
+ns.registerEvent(watch, "ADDON_ACTION_FORBIDDEN")
+ns.registerEvent(watch, "ADDON_ACTION_BLOCKED")
+
+function TS.setPick(set, slot, spell)
+	if refused or not (TS.known(set) and type(slot) == "number" and slot >= 1 and slot <= 4) then return false end
+	if spell ~= 0 then
+		local fits = false
+		for _, id in ipairs(ns.Totems.knownTotems(slot)) do if id == spell then fits = true end end
+		if not fits then return false end
+	end
+	if not SetMultiCastSpell or InCombatLockdown() then return false end
+	ns.try("totem sets: pick", SetMultiCastSpell, ns.TotemBar.actionFor(slot, set), spell)
+	return not refused
 end

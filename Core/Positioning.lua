@@ -172,6 +172,7 @@ end
 local function wheel(c, delta, ranges, size)
 	local function step(key, by, from)
 		local r = ranges[key]
+		if not r then return end
 		c[key] = clamp(round2((from or c[key]) + delta * by), r[1], r[2])
 	end
 	if IsControlKeyDown() then step("alpha", 0.05)
@@ -306,7 +307,7 @@ local function selectMovable(m)
 end
 
 -- A bar's mover: a box over it while unlocked that drags (snapping), wheels, nudges and locks it.
--- spec: frame (the bar), label, cfg() (point, x, y, scale, alpha), ranges, size (the plain wheel,
+-- spec: frame (the bar), label, cfg() (point, x, y, optional scale and alpha), ranges, size (the plain wheel,
 -- as wheel() takes it), shown() (it can be placed now), place() (lay it out again), describe() (the
 -- label after a wheel step), lock() (combat started). A right-click opens the bar's page.
 -- Returns the movable for ns.Bars.register, with update() for the bar's layout.
@@ -327,7 +328,8 @@ function PO.mover(spec)
 	local movable = { frame = f }
 	local function place()
 		local c = spec.cfg()
-		W.placeOnPixels(f, c.point, c.x / c.scale, c.y / c.scale)
+		local scale = c.scale or 1
+		W.placeOnPixels(f, c.point, c.x / scale, c.y / scale)
 	end
 	local function moveTo(x, y)
 		local c = spec.cfg()

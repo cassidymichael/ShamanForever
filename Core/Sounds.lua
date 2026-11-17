@@ -1,6 +1,6 @@
 -- Sounds
 
-local _, ns = ...
+local ADDON, ns = ...
 local E, P = ns.Elements, ns.Profiles
 
 local SN = {}
@@ -8,6 +8,7 @@ ns.Sounds = SN
 
 local GAP = 2   -- seconds
 local SAME = 0.5   -- seconds
+local OWN = "Interface\\AddOns\\" .. ADDON .. "\\Art\\Sounds\\"
 
 local GAME = {
 	{ "raid", "Raid warning", "RAID_WARNING", 567397 },
@@ -19,6 +20,14 @@ local GAME = {
 	{ "invite", "Group invite", "IG_PLAYER_INVITE" },
 	{ "quest", "Quest complete", "IG_QUEST_LIST_COMPLETE" },
 	{ "toast", "Friend online", "UI_BNET_TOAST" },
+	{ "bonk1", "Bonk 1", nil, 569179, byFile = true },
+	{ "bonk2", "Bonk 2", nil, 569569, byFile = true },
+	{ "bonk3", "Bonk 3", nil, 568956, byFile = true },
+	{ "bonk4", "Bonk 4", nil, OWN .. "bonk4.ogg", byFile = true },
+	{ "bonk4Loud", "Bonk 4 (loud)", nil, OWN .. "bonk4-loud.ogg", byFile = true },
+	{ "saberSwing", "Lightsaber swing", nil, OWN .. "saber-swing.ogg", byFile = true },
+	{ "saberClash", "Lightsaber clash", nil, OWN .. "saber-clash.ogg", byFile = true },
+	{ "saberIgnite", "Lightsaber ignite", nil, OWN .. "saber-ignite.ogg", byFile = true },
 }
 local gameByName = {}
 for _, g in ipairs(GAME) do gameByName[g[1]] = g end
@@ -26,7 +35,10 @@ for _, g in ipairs(GAME) do gameByName[g[1]] = g end
 SN.CHANNELS = { { "Master", "Master" }, { "SFX", "Sound effects" }, { "Dialog", "Dialog" } }
 local CHANNEL_OK = { Master = true, SFX = true, Dialog = true }
 
-local function kit(g) return SOUNDKIT and SOUNDKIT[g[3]] end
+local function kit(g)
+	if g[3] == nil then return g.byFile or nil end
+	return SOUNDKIT and SOUNDKIT[g[3]]
+end
 
 local function lsmSound(name)
 	if name == "None" then return nil end
@@ -37,7 +49,7 @@ end
 -- A sound file ID, for engine-played sounds (aura sounds); nil when the value has none
 function SN.fileID(value)
 	local g = gameByName[value]
-	if g then return kit(g) and g[4] or nil end
+	if g then return kit(g) and type(g[4]) == "number" and g[4] or nil end
 	local f = lsmSound(value)
 	return type(f) == "number" and f or nil
 end
@@ -61,10 +73,11 @@ function SN.channel()
 	return CHANNEL_OK[c] and c or "Master"
 end
 
-local function emit(value)
+local function emit(value, channel)
 	local how, what = resolve(value)
-	if how == "kit" then ns.try("sound", PlaySound, what, SN.channel())
-	elseif how == "file" then ns.try("sound", PlaySoundFile, what, SN.channel()) end
+	channel = channel or SN.channel()
+	if how == "kit" then ns.try("sound", PlaySound, what, channel)
+	elseif how == "file" then ns.try("sound", PlaySoundFile, what, channel) end
 end
 
 local lastByAlert, lastBySound = {}, {}
@@ -87,7 +100,12 @@ function SN.element(key, event, zoning, gap)
 	if E.inUse(key) then SN.play(E.setting(key, event, "sound"), key .. ":" .. event, gap, zoning) end
 end
 
-function SN.test(value) emit(value) end
+function SN.playEach(value, channel)
+	if not resolve(value) or not E.isActive() or ns.isOff() or ns.cantAct() then return end
+	emit(value, channel)
+end
+
+function SN.test(value, channel) emit(value, channel) end
 function SN.playable(value) return resolve(value) ~= nil end
 
 -- Aura sounds: the engine plays them, so they work in combat. Changes wait for combat's end, but off and on.

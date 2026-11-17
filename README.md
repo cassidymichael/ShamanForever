@@ -18,7 +18,7 @@ A collection of highly configurable HUD elements designed to help shamans playin
 
 Some highlights include:
 
-**Totem bar**: Fully configurable totem bar replacing the default or active totem frames: drop, pick and dismiss totems, Call of the Elements and Totemic Recall, out of range warning, key bindings, themes, and more.
+**Totem bar**: Fully configurable totem bar replacing the default or active totem frames: drop, pick and dismiss totems, Call of the Elements and Totemic Recall, totem sets for each Call (set ahead of time, switched in combat), out of range warning, key bindings, themes, and more.
 
 **Shield helpers**: Lightning Shield and Water Shield tracking. Style and animate based on charges left.
 
@@ -31,6 +31,8 @@ Some highlights include:
 **Weapon Imbues**: Rockbiter, Flametongue, Frostbrand, and Windfury imbue status. Warn when missing.
 
 **Swing timer**: Melee swing timer shown as a bar.
+
+**Windfury proc alerts**: See and hear every Windfury proc, from Windfury Weapon or Windfury Totem, each with its own words, icon, look, sound and place on screen.
 
 **Dedicated ability and proc trackers**: Custom made indicators for shaman abilities such as Stormstrike, Fire Nova, Chain Lightning, Riptide, Lightning Mastery, Rage of the Farseer, Nature's Swiftness, Mana Tide Totem, Earthbind Totem, Tremor Totem, Grounding Totem, Stoneclaw Totem, Totemic Call, Elemental Focus, Maelstrom Weapon, Flurry, Improved Stormstrike. Not just cooldowns, also event, duration and condition-based warnings and animation styles.
 
