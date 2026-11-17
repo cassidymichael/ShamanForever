@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.17.0 (2026-11-17)
 
 - New: Windfury proc alerts. An alert on screen, with a sound if you pick one, each time Windfury Weapon or Windfury Totem procs. Each alert has its own text, icon, size, animation and place. Off by default: turn it on from its new page in the options.
 - Totem bar: set up the four totems each Call drops ahead of time, in a new grid under Totem sets, and choose which Call's totems the bar uses.
