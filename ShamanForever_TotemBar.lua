@@ -33,6 +33,7 @@ TB.DEFAULTS = {
 	hidden = {},
 	dir = "row",
 	pop = "up",   -- up | down (row), right | left (column)
+	popAbove = false,   -- pickers drawn over the action bars and windows (strata HIGH), not under them
 	spacing = 2,
 	-- The Buttons settings apply only in Everything
 	cast = true,
@@ -482,7 +483,8 @@ local function makePicker(s, name)
 	pop.bg = pop:CreateTexture(nil, "BACKGROUND")
 	pop.bg:SetAllPoints()
 	pop.bg:SetColorTexture(TB.POP_FILL[1], TB.POP_FILL[2], TB.POP_FILL[3], TB.POP_FILL[4])
-	-- Under every window whatever its level; the arrows (the bar's strata) stay above the catch button
+	-- Under every window whatever its level, unless "Pickers over the action bars" (layoutPopout sets it);
+	-- the arrows (the bar's strata) stay above the catch button while it's LOW
 	pop:SetFrameStrata("LOW")
 	pop.buttons = {}
 	s.popout = pop
@@ -1097,6 +1099,9 @@ local DROP_KEY = { shift = "shift-", alt = "alt-", ctrl = "ctrl-" }
 
 local function layoutPopout(s, size, known)
 	local pop = s.popout
+	-- Over the action bars (MEDIUM) when asked: a picker opening across them is otherwise drawn behind them.
+	-- Its catch button comes along, so while it's open a click on a bar or arrow only closes it
+	pop:SetFrameStrata(TB.eff().popAbove and "HIGH" or "LOW")
 	local slot = s.slot
 	local ids = { 0 }
 	for _, id in ipairs(known) do table.insert(ids, id) end
