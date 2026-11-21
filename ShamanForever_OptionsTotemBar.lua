@@ -441,6 +441,9 @@ local function build(p)
 		return { { "right", "Right" }, { "left", "Left" } }
 	end, function() return TB.eff().pop end, tset("pop"),
 		function() return full() and not TB.skin.owns("pop") end, 140)
+	p:checkbox("Pickers over the action bars", "An open picker is drawn on top of your action bars and windows, "
+		.. "instead of behind them. While one is open, the first click elsewhere only closes it.",
+		tget("popAbove"), tset("popAbove"), full)
 	tslider("Spacing", "Gap between the slots. Below 0 they overlap.", px, "spacing", free("spacing"))
 	p:text(function()
 		local names = {}
