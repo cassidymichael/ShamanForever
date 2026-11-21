@@ -35,6 +35,8 @@ SW.DEFAULTS = {
 	deplete = false,
 	countdown = false, countdownSize = 12, countdownColor = { 1, 1, 1, 1 },
 	countdownPos = "center",
+	idle = false,   -- the empty bar stays up between swings
+	speed = false,   -- your weapon speed in the middle of the bar
 }
 -- Marks: elements offering their aura's charges as pips (an element's swingMark, main), each with a
 -- switch in marks, off by default
@@ -169,7 +171,16 @@ pcall(cd.SetCountdownMillisecondsThreshold, cd, 60)
 local okText, cdFont = pcall(cd.GetCountdownFontString, cd)
 local cdText = okText and cdFont or nil
 
-local state = { endsAt = nil, swings = 0, secret = 0, casts = 0 }
+-- Weapon speed: in the middle, over the bar, in the countdown's font
+local over = CreateFrame("Frame", nil, face)
+over:SetAllPoints()
+over:SetFrameLevel(face:GetFrameLevel() + 4)   -- over the marks' pips (3)
+local speedText = over:CreateFontString(nil, "OVERLAY")
+speedText:SetFontObject(font)
+speedText:SetPoint("CENTER", face, "CENTER", 0, 0)
+speedText:Hide()
+
+local state = { endsAt = nil, swings = 0, secret = 0, casts = 0, speed = nil }
 local duration = C_DurationUtil and C_DurationUtil.CreateDuration and C_DurationUtil.CreateDuration()
 local pv = { mode = nil, action = "swing", count = 0, nextAt = 0 }
 
@@ -263,9 +274,26 @@ local function previewMarks()
 	end
 end
 
+-- Main-hand speed. UnitAttackSpeed is secret while unit stats are restricted (a fight): the last plain
+-- reading stays, so haste gained in the fight doesn't show
+local function readSpeed()
+	local s = ns.plain(ns.safe(UnitAttackSpeed, "player"))
+	if type(s) == "number" and s > 0 then state.speed = s end
+end
+function SW.speed() return state.speed end
+-- While the bar is up, but not under a countdown in the middle during a swing
+local function drawSpeed()
+	local c = cfg()
+	local covered = bar:IsShown() and c.countdown and c.countdownPos == "center"
+	local on = c.speed and state.speed ~= nil and not covered
+	if on then speedText:SetText(string.format("%.2f", state.speed)) end
+	speedText:SetShown(on and true or false)
+end
+
 local function drawFace()
-	face:SetShown(bar:IsShown() or not P.getAccount().locked)
+	face:SetShown(bar:IsShown() or not P.getAccount().locked or cfg().idle)
 	for _, m in pairs(marks) do markAlpha(m) end
+	drawSpeed()
 end
 
 local function clearSwing()
@@ -328,6 +356,8 @@ local EVENTS = {
 	{ "WEAPON_ENCHANT_CHANGED" },
 	{ "PLAYER_LEAVE_COMBAT" },
 	{ "PLAYER_DEAD" },
+	{ "UNIT_ATTACK_SPEED", "player" },
+	{ "PLAYER_REGEN_ENABLED" },
 }
 
 local function onEvent(_, event, a1, a2)
@@ -338,6 +368,9 @@ local function onEvent(_, event, a1, a2)
 		paintFill()
 		ns.changed()
 	elseif event == "PLAYER_LEAVE_COMBAT" or event == "PLAYER_DEAD" then clearSwing()
+	elseif event == "UNIT_ATTACK_SPEED" or event == "PLAYER_REGEN_ENABLED" then
+		readSpeed()
+		drawSpeed()
 	end
 end
 
@@ -379,6 +412,7 @@ local function layout()
 	cd:SetCountdownFont(ns.NAME .. "SwingFont")
 	cd:SetHideCountdownNumbers(not c.countdown)
 	if cdText then SW.placeCountdown(cdText, face) end
+	readSpeed()
 	if state.endsAt then drawSwing() else drawFace() end
 	-- A mark that's off is hidden, not only faded: a shown container still follows every aura change
 	for _, m in pairs(marks) do
@@ -476,6 +510,7 @@ function SW.debug()
 	say("swing: %s; %d swings seen, %d with a secret duration, %d cast starts; %s",
 		listening and "on" or "off", state.swings, state.secret, state.casts,
 		left and (left > 0 and string.format("next in %.1f s", left) or "due") or "no swing under way")
+	say("swing: weapon speed %s", state.speed and string.format("%.2f", state.speed) or "not read yet")
 	for _, key in ipairs(MARKS) do
 		say("swing mark %s: %s, %s", key, cfg().marks[key] and "on" or "off", marks[key].slot:describe())
 	end

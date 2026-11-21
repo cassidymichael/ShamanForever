@@ -33,6 +33,9 @@ local PREVIEW = {
 		over:SetFrameLevel(box:GetFrameLevel() + 2)
 		box.text = over:CreateFontString(nil, "OVERLAY")
 		box.text:SetFontObject(ns.Swing.font)
+		box.speed = over:CreateFontString(nil, "OVERLAY")
+		box.speed:SetFontObject(ns.Swing.font)
+		box.speed:SetPoint("CENTER", box, "CENTER", 0, 0)
 		box.over, box.pips = over, {}
 		h.swing = box
 		h.fitNote = h:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
@@ -62,6 +65,9 @@ local PREVIEW = {
 		box.bar:SetValue(c.deplete and 1 - filled or filled)
 		box.text:SetText(string.format("%.1f", LENGTH * (1 - FILL)))
 		box.text:SetShown(c.countdown and not due)
+		-- Weapon speed: yours, else the sample's; not under a countdown in the middle
+		box.speed:SetText(string.format("%.2f", SW.speed() or LENGTH))
+		box.speed:SetShown(c.speed and not (c.countdown and not due and c.countdownPos == "center"))
 		-- Marks switched on and learned, full
 		for _, key in ipairs(SW.MARKS) do
 			local pips, e = box.pips[key], E.ALL[key]
@@ -100,8 +106,11 @@ local function build(p)
 	p:hero("swing")
 	K.behaviourSection(p)
 	p:header("Display")
-	p:dropdown("Show", "It shows from your first swing. While positioning is unlocked it always shows, unless Hidden.",
+	p:dropdown("Show", "It shows from your first swing, or all the time with Show between swings. While "
+		.. "positioning is unlocked it always shows, unless Hidden.",
 		SHOWS, get("show"), set("show"), nil, 160)
+	p:checkbox("Show between swings", "The empty bar stays up between swings instead of hiding. Show still "
+		.. "decides when: in combat, or always.", get("idle"), set("idle"))
 
 	p:header("Layout")
 	slider(p, R.width, "Width", "Mouse wheel over the bar while positioning is unlocked does the same.",
@@ -135,9 +144,12 @@ local function build(p)
 		set("countdown"))
 	p:sub(text, get("countdown"), function()
 		p:dropdown("Position", nil, TEXT_POS, get("countdownPos"), set("countdownPos"), nil, 160)
-		slider(p, R.countdownSize, "Text size", nil, int, get("countdownSize"), set("countdownSize"))
-		p:color("Text colour", nil, get("countdownColor"), set("countdownColor"))
 	end)
+	p:checkbox("Weapon speed", "Your main-hand speed, in the middle of the bar; with the countdown in the middle "
+		.. "it shows between swings. Read out of combat: the game hides it in a fight.", get("speed"), set("speed"))
+	local function anyText() return c().countdown or c().speed end
+	slider(p, R.countdownSize, "Text size", nil, int, get("countdownSize"), set("countdownSize"), anyText)
+	p:color("Text colour", nil, get("countdownColor"), set("countdownColor"), anyText)
 
 	if #SW.MARKS > 0 then
 		p:header("Marks")
