@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Fixed the profile going back to Default every time you log in. Your profiles were never lost, and the one you were using comes back on its own.
+
 ## 0.17.0 (2026-11-17)
 
 - New: Windfury proc alerts. An alert on screen, with a sound if you pick one, each time Windfury Weapon or Windfury Totem procs. Each alert has its own text, icon, size, animation and place. Off by default: turn it on from its new page in the options.
