@@ -1,8 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.17.1 (2026-11-22)
 
-- Fixed the profile going back to Default every time you log in. Your profiles were never lost, and the one you were using comes back on its own.
+- Fixed the profile going back to Default every time you log in. A recent WoW update, along with a quirk in ShamanForever's character identification technique, caused this. Thank you to those who reported this bug so I could promptly fix it.
 
 ## 0.17.0 (2026-11-17)
 
