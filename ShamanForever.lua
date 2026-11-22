@@ -1299,6 +1299,7 @@ function E.debugReport()
 	say("in combat %s", tostring(InCombatLockdown()))
 	if ns.isOff() then say("off (%s disable)", ns.CLASS.slash[1]) end
 	changeableLine()
+	P.debug()
 	local known, otherRace = {}, {}
 	for _, e in pairs(ELEMENTS) do
 		if e.spell and Spells.otherRace(e.race) then otherRace[e.spell] = true end

@@ -347,7 +347,7 @@ local function acct() return P.getAccount() end
 -- Keyed by the game's ID for the character: the realm name can read empty
 local UNKNOWN = _G.UNKNOWNOBJECT or "Unknown"
 local GUID_KEY = "^Player%-%d+%-%x+$"
-local charKeyNow
+local charKeyNow, charFrom
 
 local function str(v) return not ns.isSecret(v) and type(v) == "string" and v ~= "" and v or nil end
 
@@ -364,13 +364,13 @@ local function charNames()
 	return first, last and first .. " " .. last or first
 end
 
--- The record from before to copy for this character
+-- The record from before to copy for this character, and how it was found
 local function earlier(a, first, full)
 	local best, bestKey, bestRank
 	for key, c in pairs(a.chars) do
 		if key:find(GUID_KEY) and c.name == full and (not best or key < bestKey) then best, bestKey = c, key end
 	end
-	if best then return best end
+	if best then return best, "copied from another id" end
 	local realm = str(ns.plain(ns.safe(GetRealmName)))
 	realm = realm and realm:gsub("[%s%-]", "")
 	for key, c in pairs(a.chars) do
@@ -383,7 +383,7 @@ local function earlier(a, first, full)
 			end
 		end
 	end
-	return best
+	return best, best and "copied from an older record"
 end
 
 local function charKey()
@@ -395,9 +395,11 @@ local function charKey()
 	-- No record is made before the name reads: an earlier one is found by it
 	if not first then return a.chars[guid] and guid or nil end
 	local c = a.chars[guid]
-	if not c then
-		local old = earlier(a, first, full)
-		c = old and CopyTable(old) or {}
+	if c then
+		charFrom = "its id"
+	else
+		local old, from = earlier(a, first, full)
+		c, charFrom = old and CopyTable(old) or {}, from or "new"
 		a.chars[guid] = c
 	end
 	c.name = full
@@ -445,6 +447,15 @@ function P.remember(name)
 	local a = acct()
 	a.chars[key] = a.chars[key] or {}
 	a.chars[key].profile = name
+end
+
+function P.debug()
+	local key = charKey()
+	local c = key and acct().chars[key]
+	local guid = charGUID()
+	ns.say("character: key %s (%s), server %s, realm \"%s\", saved profile %s, using %s",
+		key or "none", charFrom or "not known yet", guid and guid:match("^Player%-(%d+)") or "-",
+		str(ns.plain(ns.safe(GetRealmName))) or "", c and c.profile or "-", P.currentName())
 end
 
 -- Loading
