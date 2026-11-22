@@ -344,20 +344,72 @@ end
 local function acct() return P.getAccount() end
 
 -- Characters
--- GetNormalizedRealmName isn't ready at load: built from GetRealmName. nil while the name reads
--- "Unknown" (the game doesn't know the character yet).
+-- Keyed by the game's ID for the character: the realm name can read empty
 local UNKNOWN = _G.UNKNOWNOBJECT or "Unknown"
+local GUID_KEY = "^Player%-%d+%-%x+$"
+local charKeyNow
+
+local function str(v) return not ns.isSecret(v) and type(v) == "string" and v ~= "" and v or nil end
+
+local function charGUID()
+	local guid = str(ns.plain(ns.safe(UnitGUID, "player")))
+	return guid and guid:find(GUID_KEY) and guid or nil
+end
+
+-- First name and full name; nil while the game doesn't know the character
+local function charNames()
+	local ok, first, last = ns.safe(UnitNameUnmodified or UnitName, "player")
+	first, last = ok and str(first), ok and str(last)
+	if not first or first == UNKNOWN then return nil end
+	return first, last and first .. " " .. last or first
+end
+
+-- The record from before to copy for this character
+local function earlier(a, first, full)
+	local best, bestKey, bestRank
+	for key, c in pairs(a.chars) do
+		if key:find(GUID_KEY) and c.name == full and (not best or key < bestKey) then best, bestKey = c, key end
+	end
+	if best then return best end
+	local realm = str(ns.plain(ns.safe(GetRealmName)))
+	realm = realm and realm:gsub("[%s%-]", "")
+	for key, c in pairs(a.chars) do
+		local name, keyRealm = key:match("^(.*)%-([^%-]*)$")
+		if name and not key:find(GUID_KEY) and (name == full or name == first) then
+			-- A realm named as the live ones are: a row from before launch should not win
+			local rank = keyRealm == realm and 2 or keyRealm:find("Realm%d+%a+$") and 1 or 0
+			if not best or rank > bestRank or (rank == bestRank and key < bestKey) then
+				best, bestKey, bestRank = c, key, rank
+			end
+		end
+	end
+	return best
+end
+
 local function charKey()
-	local name, realm = UnitName("player"), GetRealmName()
-	if not name or name == "" or name == UNKNOWN then return nil end
-	if realm and realm ~= "" then return name .. "-" .. realm:gsub("[%s%-]", "") end
+	if charKeyNow then return charKeyNow end
+	local guid = charGUID()
+	if not guid then return nil end
+	local a = acct()
+	local first, full = charNames()
+	-- No record is made before the name reads: an earlier one is found by it
+	if not first then return a.chars[guid] and guid or nil end
+	local c = a.chars[guid]
+	if not c then
+		local old = earlier(a, first, full)
+		c = old and CopyTable(old) or {}
+		a.chars[guid] = c
+	end
+	c.name = full
+	charKeyNow = guid
+	return guid
 end
 
 -- Keys saved with spaced realm names merge into the normalised ones
 local function mergeCharKeys(a)
 	local old = {}
 	for key in pairs(a.chars) do
-		local realm = key:match("^.-%-(.+)$")
+		local realm = not key:find(GUID_KEY) and key:match("^.-%-(.+)$")
 		if realm and realm:find("[%s%-]") then table.insert(old, key) end
 	end
 	for _, key in ipairs(old) do
@@ -378,7 +430,7 @@ function P.saved()
 end
 
 -- This character's own saved table, outside profiles; nil until the game knows the character. Shared
--- fields: profile (its profile's name), off (true while /sf disable holds)
+-- fields: profile (its profile's name), off (true while /sf disable holds), name (its full name)
 function P.char()
 	local key = charKey()
 	if not key then return nil end
@@ -421,6 +473,7 @@ function P.load()
 	for _, c in pairs(a.chars) do
 		if c.off ~= true then c.off = nil end
 		if type(c.profile) ~= "string" then c.profile = nil end
+		if type(c.name) ~= "string" then c.name = nil end
 	end
 	-- Every profile, not only the one selected: none keeps the old names once the map goes. Profiles
 	-- saved before a default changed keep the old one, once (none saved yet: they start new)
