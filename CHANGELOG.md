@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Swing timer: "Show" now has the choices "While swinging", "In combat (even when not swinging)", "Always" and "Never". If you had "Always" picked, the bar now stays on screen between swings.
+- Swing timer: New options "Bar between swings" (empty or full) for how the bar looks when it is on screen but you are not swinging, "Spark on the bar", and more options for Flurry charges on swing timer (position, thickness, and colour for the Flurry charges' pips).
+
 ## 0.17.1 (2026-11-22)
 
 - Fixed the profile going back to Default every time you log in. A recent WoW update, along with a quirk in ShamanForever's character identification technique, caused this. Thank you to those who reported this bug so I could promptly fix it.

@@ -141,6 +141,7 @@ read_globals = {
     "StaticPopup_Show",
     "TotemFrame",
     "UIParent",
+    "UnitAttackSpeed",
     "UnitCanAttack",
     "UnitClass",
     "UnitExists",

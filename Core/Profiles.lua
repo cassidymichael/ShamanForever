@@ -20,7 +20,7 @@ local SAVED = ns.NAME .. "DB"
 local DEFAULT_PROFILE = "Default"
 P.DEFAULT_NAME = DEFAULT_PROFILE
 -- Share strings carry it: one from a newer version is refused
-local SHARE_VERSION = 12
+local SHARE_VERSION = 13
 
 -- Element settings (db.elementOpts[key]). A state or event is a table of fields, named the same on
 -- every element; an element's defaults declare the fields it has, and pages offer those.
@@ -153,6 +153,8 @@ local RETIRED = {
 		flameshock = { on = true } } },
 	-- Split settings, by share version: holder -> new -> { old, its default }
 	split = { [12] = { totemBar = { setHover = { "pickHover", true } } } },
+	-- Values that took a new meaning, by share version: holder -> setting -> old -> new
+	revalued = { [13] = { swingBar = { show = { combat = "swinging" } } } },
 }
 
 -- Every sound field under t
@@ -316,7 +318,8 @@ function P.migrate(profile)
 	retireStyles(profile)
 end
 
--- A profile from version v, after P.migrate: the defaults that changed since stay as it had them
+-- A profile from version v, after P.migrate: the defaults that changed since stay as it had them, and a value
+-- that took a new meaning since becomes the one that shows what it showed
 local function keepOldDefaults(profile, v)
 	local opts = profile.elementOpts
 	if v ~= v or v < 0 then v = 0 end
@@ -336,6 +339,13 @@ local function keepOldDefaults(profile, v)
 					if type(was) ~= type(from[2]) then was = from[2] end
 					t[name] = was
 				end
+			end
+		end
+		for key, names in pairs(RETIRED.revalued[at] or {}) do
+			local t = profile[key]
+			for name, map in pairs(type(t) == "table" and names or {}) do
+				local new = t[name] ~= nil and map[t[name]]
+				if new then t[name] = new end
 			end
 		end
 	end

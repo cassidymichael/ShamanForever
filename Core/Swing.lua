@@ -25,7 +25,8 @@ SW.COLOR_BY = COLOR_BY
 
 -- Settings
 SW.DEFAULTS = {
-	show = "combat",   -- combat | always | never
+	show = "swinging",   -- swinging | combat | always | never
+	idle = "empty",   -- empty | full: the bar between swings, where it stays up
 	point = "CENTER", x = 0, y = -251,
 	width = 220, height = 7,
 	scale = 1,
@@ -33,8 +34,12 @@ SW.DEFAULTS = {
 	colorBy = COLOR_BY[1], color = { 1, 0.8, 0.25, 1 },
 	fillFrom = "left",
 	deplete = false,
+	spark = true,
 	countdown = false, countdownSize = 12, countdownColor = { 1, 1, 1, 1 },
 	countdownPos = "center",
+	markPos = "top",   -- top | bottom (inside the bar) | above | below (outside it)
+	markSize = 0.33,   -- of the bar's height
+	markColorBy = "element", markColor = { 1, 1, 1, 1 },
 }
 -- Marks: elements offering their aura's charges as pips (an element's swingMark, main), each with a
 -- switch in marks, off by default
@@ -48,10 +53,11 @@ for _, key in ipairs(E.KEYS) do
 end
 SW.MARKS = MARKS
 local RANGES = { width = { 40, 400, 4 }, height = { 4, 40, 1 }, scale = { 0.5, 3, 0.05 }, alpha = { 0.1, 1, 0.05 },
-	countdownSize = { 8, 40, 1 } }
+	countdownSize = { 8, 40, 1 }, markSize = { 0.1, 1, 0.01 } }
 SW.RANGES = RANGES
-local CHOICES = { show = { "combat", "always", "never" }, colorBy = COLOR_BY,
-	fillFrom = { "left", "right" }, countdownPos = { "center", "left", "right" } }
+local CHOICES = { show = { "swinging", "combat", "always", "never" }, idle = { "empty", "full" }, colorBy = COLOR_BY,
+	fillFrom = { "left", "right" }, countdownPos = { "center", "left", "right" },
+	markPos = { "top", "bottom", "above", "below" }, markColorBy = { "element", "custom" } }
 
 -- What the profile's cleaning can't declare, once per saved table
 local cfgTable
@@ -67,6 +73,9 @@ end
 SW.cfg = cfg
 
 function SW.isOn() return E.isActive() and cfg().show ~= "never" end
+-- Whether Show keeps the bar up between swings at all (In combat, Always)
+local SHOWS_IDLE = { combat = true, always = true }
+function SW.showsIdle() return SHOWS_IDLE[cfg().show] == true end
 
 SW.BACKGROUND = { 0, 0, 0, 0.6 }
 function SW.makeBar(parent)
@@ -90,6 +99,7 @@ function SW.styleBar(b)
 	b.spark:SetPoint("TOP" .. side, fill, "TOP" .. side, 0, 0)
 	b.spark:SetPoint("BOTTOM" .. side, fill, "BOTTOM" .. side, 0, 0)
 	b.spark:SetWidth(W.linePx(b, 2))
+	b.spark:SetShown(c.spark)
 end
 
 -- Pips: a strip filled one pip a charge, a dark tick between
@@ -101,16 +111,25 @@ function SW.makePips(parent)
 	b.ticks = {}
 	return b
 end
--- max pips along anchor's top; ref: the frame its pixels are read from (else anchor), never one under
+-- A mark's colour: its element's, or the custom one
+function SW.markColor(spec)
+	local c = cfg()
+	return c.markColorBy == "custom" and c.markColor or spec.color()
+end
+-- The pips' edge, the anchor's edge it sits on, and its gap in pixels
+local MARK_AT = { top = { "TOP", "TOP", 0 }, bottom = { "BOTTOM", "BOTTOM", 0 }, above = { "BOTTOM", "TOP", 1 },
+	below = { "TOP", "BOTTOM", -1 } }
+-- max pips along anchor; ref: the frame its pixels are read from (else anchor), never one under
 -- Blizzard's aura button
 function SW.stylePips(b, anchor, max, color, ref)
 	local c = cfg()
 	ref = ref or anchor
 	local px = W.pixel(ref)
+	local at = MARK_AT[c.markPos] or MARK_AT.top
 	b:ClearAllPoints()
-	b:SetPoint("TOPLEFT", anchor, "TOPLEFT", 0, 0)
-	b:SetPoint("TOPRIGHT", anchor, "TOPRIGHT", 0, 0)
-	b:SetHeight(math.max(W.roundPx(c.height / 3, px), 2 * px))
+	b:SetPoint(at[1] .. "LEFT", anchor, at[2] .. "LEFT", 0, at[3] * px)
+	b:SetPoint(at[1] .. "RIGHT", anchor, at[2] .. "RIGHT", 0, at[3] * px)
+	b:SetHeight(math.max(W.roundPx(c.height * c.markSize, px), 2 * px))
 	b:SetStatusBarTexture(ns.Media.barTexture("swing"))
 	b:SetStatusBarColor(color[1], color[2], color[3], color[4] or 1)
 	b:SetReverseFill(c.fillFrom == "right")
@@ -158,6 +177,12 @@ face.bg:SetColorTexture(unpack(SW.BACKGROUND))
 local bar = SW.makeBar(face)
 bar:SetFrameLevel(face:GetFrameLevel() + 1)
 bar:Hide()
+-- Between swings: the bar full, where it stays up that way
+local rest = SW.makeBar(face)
+rest:SetFrameLevel(face:GetFrameLevel() + 1)
+rest:SetValue(1)
+rest.spark:Hide()
+rest:Hide()
 local cd = CreateFrame("Cooldown", nil, face, "CooldownFrameTemplate")
 cd:SetAllPoints()
 cd:SetFrameLevel(face:GetFrameLevel() + 2)
@@ -169,7 +194,7 @@ pcall(cd.SetCountdownMillisecondsThreshold, cd, 60)
 local okText, cdFont = pcall(cd.GetCountdownFontString, cd)
 local cdText = okText and cdFont or nil
 
-local state = { endsAt = nil, swings = 0, secret = 0, casts = 0 }
+local state = { endsAt = nil, attacking = false, swings = 0, secret = 0 }
 local duration = C_DurationUtil and C_DurationUtil.CreateDuration and C_DurationUtil.CreateDuration()
 local pv = { mode = nil, action = "swing", count = 0, nextAt = 0 }
 
@@ -182,6 +207,7 @@ SW.fillColor = fillColor
 local function paintFill()
 	local c = fillColor()
 	bar:SetStatusBarColor(c[1], c[2], c[3], c[4] or 1)
+	rest:SetStatusBarColor(c[1], c[2], c[3], c[4] or 1)
 end
 
 -- Marks: each on its own aura slot over f, no picture, only the pips its button fills
@@ -190,10 +216,10 @@ local function markOn(key)
 	local e = E.ALL[key]
 	return cfg().marks[key] == true and e.learned ~= nil and e.learned() and SW.isOn()
 end
--- What a mark's pips are drawn for: the bar's size and direction
+-- What a mark's pips are drawn for: the bar's size and direction, their own place and size
 local function markShape()
 	local c = cfg()
-	return c.width .. "x" .. c.height .. c.fillFrom
+	return c.width .. "x" .. c.height .. c.fillFrom .. c.markPos .. c.markSize
 end
 -- Our frame over Blizzard's button: its opacity is ours to set in combat too. Hidden while its pips
 -- wait to be drawn for the bar as it is (a restyle waits while auras are secret). A site each: a retry
@@ -230,7 +256,7 @@ for _, key in ipairs(MARKS) do
 		end,
 		onStyle = function(slot)
 			if m.pips then
-				SW.stylePips(m.pips, slot.button, spec.max, spec.color(), f)
+				SW.stylePips(m.pips, slot.button, spec.max, SW.markColor(spec), f)
 				m.shape = markShape()
 			end
 			markAlpha(m)
@@ -255,7 +281,7 @@ local function previewMarks()
 		end
 		if shown then
 			local spec = E.ALL[key].swingMark
-			SW.stylePips(b, face, spec.max, spec.color())
+			SW.stylePips(b, face, spec.max, SW.markColor(spec))
 			b:SetMinMaxValues(0, spec.max)
 			b:SetValue(pv.mode == "busy" and math.min(math.max(spec.max + 1 - pv.count, 1), spec.max) or spec.max)
 		end
@@ -263,8 +289,15 @@ local function previewMarks()
 	end
 end
 
+-- Up with no swing under way
+local function idleNow()
+	local show = cfg().show
+	return show == "always" or (show == "combat" and (ns.inCombat() or pv.mode ~= nil))
+end
 local function drawFace()
-	face:SetShown(bar:IsShown() or not P.getAccount().locked)
+	local idle = idleNow()
+	face:SetShown(bar:IsShown() or not P.getAccount().locked or idle)
+	rest:SetShown(idle and not bar:IsShown() and cfg().idle == "full")
 	for _, m in pairs(marks) do markAlpha(m) end
 end
 
@@ -308,36 +341,57 @@ local function onSwing(swingDuration, swingType)
 	startSwing(swingDuration)
 end
 
--- A cast-time spell restarts the swing: clear the bar
-local function onCastStart()
-	state.casts = state.casts + 1
-	if state.endsAt and not pv.mode then clearSwing() end
+-- With auto attack off, the swing under way runs to its end, then clears
+local function clearAtEnd()
+	local endsAt = state.endsAt
+	local left = endsAt and endsAt - GetTime()
+	if not left or left <= 0 then
+		clearSwing()
+		return
+	end
+	C_Timer.After(left, function()
+		if state.endsAt == endsAt and not state.attacking and not pv.mode then clearSwing() end
+	end)
 end
--- A weapon swap: the swing under way was the old weapon's
+
+-- A weapon swap restarts the swing under way at the new weapon's speed
 local function onWeaponSwap()
-	if state.endsAt and not pv.mode then clearSwing() end
+	if not state.endsAt or pv.mode then return end
+	local speed = ns.plain(ns.safe(UnitAttackSpeed, "player"))
+	if type(speed) == "number" and speed > 0 and GetTime() < state.endsAt then
+		startSwing(speed)
+		if not state.attacking then clearAtEnd() end
+	else
+		clearSwing()
+	end
+end
+
+local function onAttackStop()
+	state.attacking = false
+	if not pv.mode then clearAtEnd() end
 end
 
 -- Events
 local events, listening = nil, false   -- set(on), from start
 local EVENTS = {
 	{ "PLAYER_SWING" },
-	{ "UNIT_SPELLCAST_START", "player" },
 	{ "UNIT_INVENTORY_CHANGED", "player" },
 	{ "WEAPON_SLOT_CHANGED" },
 	{ "WEAPON_ENCHANT_CHANGED" },
+	{ "PLAYER_ENTER_COMBAT" },
 	{ "PLAYER_LEAVE_COMBAT" },
 	{ "PLAYER_DEAD" },
 }
 
 local function onEvent(_, event, a1, a2)
 	if event == "PLAYER_SWING" then onSwing(a1, a2)
-	elseif event == "UNIT_SPELLCAST_START" then onCastStart()
 	elseif event == "WEAPON_SLOT_CHANGED" then onWeaponSwap()
 	elseif event == "UNIT_INVENTORY_CHANGED" or event == "WEAPON_ENCHANT_CHANGED" then
 		paintFill()
 		ns.changed()
-	elseif event == "PLAYER_LEAVE_COMBAT" or event == "PLAYER_DEAD" then clearSwing()
+	elseif event == "PLAYER_ENTER_COMBAT" then state.attacking = true
+	elseif event == "PLAYER_LEAVE_COMBAT" then onAttackStop()
+	elseif event == "PLAYER_DEAD" then clearSwing()
 	end
 end
 
@@ -350,15 +404,10 @@ end
 
 -- Visibility
 local movable
-local function visibilityDriver()
-	if pv.mode then return "show" end
-	if not P.getAccount().locked then return "show" end
-	return Bars.SHOW_WHEN[cfg().show] or "show"
-end
--- Off: no driver, hidden (out of combat: the layout's)
+-- On: the frame always up, its face drawn by Show (drawFace). Off: no driver, hidden (out of combat: the layout's)
 local function drive()
 	local on = SW.isOn()
-	ns.setVisibilityDriver(f, on and visibilityDriver() or nil, "swing timer driver")
+	ns.setVisibilityDriver(f, on and "show" or nil, "swing timer driver")
 	if not on then f:Hide() end
 end
 
@@ -374,6 +423,7 @@ local function layout()
 	W.placeOnPixels(f, c.point, c.x / c.scale, c.y / c.scale)
 	ns.StyleArt.applyBorder(face, SW.border(), "bar")
 	SW.styleBar(bar)
+	rest:SetStatusBarTexture(ns.Media.barTexture("swing"))
 	paintFill()
 	SW.styleCountdown()
 	cd:SetCountdownFont(ns.NAME .. "SwingFont")
@@ -468,13 +518,15 @@ function SW.start()
 	local ev = CreateFrame("Frame")
 	ev:SetScript("OnEvent", onEvent)
 	events = ns.eventsWhile(ev, EVENTS)
+	ns.onCombatStart(drawFace)
+	ns.onCombatEnd(drawFace)
 end
 
 -- /sf debug
 function SW.debug()
 	local left = state.endsAt and state.endsAt - GetTime()
-	say("swing: %s; %d swings seen, %d with a secret duration, %d cast starts; %s",
-		listening and "on" or "off", state.swings, state.secret, state.casts,
+	say("swing: %s; %d swings seen, %d with a secret duration; %s",
+		listening and "on" or "off", state.swings, state.secret,
 		left and (left > 0 and string.format("next in %.1f s", left) or "due") or "no swing under way")
 	for _, key in ipairs(MARKS) do
 		say("swing mark %s: %s, %s", key, cfg().marks[key] and "on" or "off", marks[key].slot:describe())
