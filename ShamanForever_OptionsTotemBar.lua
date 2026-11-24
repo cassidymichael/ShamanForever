@@ -494,13 +494,19 @@ local function build(p)
 	end
 	local CAST, ARROWS = "Left-click casts your pick", "Arrow opens a totem picker"
 	p:checkbox(CAST, "Left-click a slot to drop that element's picked totem.", tget("cast"), buttonSet("cast", CAST))
-	local arrows = p:checkbox(ARROWS, "A tab on each slot opens its totems. Works in combat.",
+	local arrows = p:checkbox(ARROWS, "A tab on each slot opens its totems.",
 		tget("arrows"), buttonSet("arrows", ARROWS))
 	p:sub(arrows, tget("arrows"), function()
 		tslider("Arrow size", "How deep the tab is.", px, "arrowSize")
 	end)
-	p:checkbox("Open pickers on hover", "Hovering a slot opens its totems. Works in combat.",
+	p:checkbox("Open totem pickers on hover", "Hovering a slot opens its totems.",
 		tget("pickHover"), tset("pickHover"))
+	p:checkbox("Close a totem picker by clicking anywhere in the world", "For a picker opened by a click, not "
+		.. "by hover. With this on, a click on the game world closes it. That click does nothing else, so it "
+		.. "will not select a monster. With this off, the picker stays open until you pick a totem or click "
+		.. "its arrow again.",
+		tget("pickAway"), tset("pickAway"),
+		function() return not c().pickHover or (c().setSwitch == "popout" and not c().setHover) end)
 	local DROP = "Drop with"
 	own("dropWith", { label = DROP, reset = function() return TB.setButtonSetting("dropWith", TB.DEFAULTS.dropWith) end })
 	p:dropdown(DROP, "Click a totem in a picker with this key held to drop it. Your pick stays.",

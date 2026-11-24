@@ -82,6 +82,7 @@ TB.DEFAULTS = {
 	rangeGap = 3,   -- beside: from what's inside it
 	rangeOrder = "after",   -- beside: the mark after (past) the time bar, or before it
 	pickHover = true,
+	pickAway = true,   -- without hover: a click on the world closes an open picker, and is taken by it
 	dropWith = "shift",   -- shift | alt | ctrl | off: the key that makes a click in a picker drop the totem
 	skin = "default",
 	pixelTray = true,
@@ -351,6 +352,8 @@ bar:Hide()
 -- The pickers' header: popouts are protected frames it references; buttons carry their index
 -- ("sf-pick") and run its open and close snippets
 local picker = CreateFrame("Frame", nil, UIParent, "SecureHandlerBaseTemplate")
+-- An open picker draws over the bars and windows; its catch button and hover strip stay under them
+local POP_STRATA, POP_LEVEL, CATCH_STRATA, STRIP_STRATA, ARROW_LEVEL = "DIALOG", 10, "BACKGROUND", "LOW", 4
 picker:SetAttribute("sf-open", [[
 	local open = ...
 	for i = 1, 5 do
@@ -465,7 +468,6 @@ end
 -- snippets can show and hide it in combat), a catch button and a hover strip
 local function makePicker(s, name)
 	local ar = CreateFrame("Button", nil, bar, "SecureActionButtonTemplate")
-	-- The bar's strata, so Blizzard's windows cover it; its level is above the catch button's
 	ar:RegisterForClicks("AnyUp")
 	ar:SetAttribute("sf-pick", s.index)
 	wrapClick(ar, ARROW_CLICK)
@@ -482,13 +484,19 @@ local function makePicker(s, name)
 	pop.bg = pop:CreateTexture(nil, "BACKGROUND")
 	pop.bg:SetAllPoints()
 	pop.bg:SetColorTexture(TB.POP_FILL[1], TB.POP_FILL[2], TB.POP_FILL[3], TB.POP_FILL[4])
-	-- Under every window whatever its level; the arrows (the bar's strata) stay above the catch button
-	pop:SetFrameStrata("LOW")
+	pop:SetFrameStrata(POP_STRATA)
+	pop:SetFrameLevel(POP_LEVEL)
+	-- A click between its totems stops here; the mouse leaving it closes a hover picker, as leaving its strip does
+	pop:EnableMouse(true)
+	pop:SetAttribute("sf-pick", s.index)
+	wrapHover(pop)
 	pop.buttons = {}
 	s.popout = pop
 	SecureHandlerSetFrameRef(picker, "pop" .. s.index, pop)
-	-- Catch button: screen-wide, under the pickers, closes an open one
+	-- Catch button: screen-wide, closes an open picker at a click on the world ("pickAway")
 	local catch = CreateFrame("Button", nil, pop, "SecureActionButtonTemplate")
+	catch:SetFrameStrata(CATCH_STRATA)
+	catch:SetFixedFrameStrata(true)
 	catch:SetAllPoints(UIParent)
 	catch:SetFrameLevel(pop:GetFrameLevel() + 1)
 	catch:RegisterForClicks("AnyUp")
@@ -497,6 +505,8 @@ local function makePicker(s, name)
 	pop.catch = catch
 	-- Hover strip: from the slot to the picker's far end so the mouse can cross; hover mode only
 	local strip = CreateFrame("Frame", nil, pop, "SecureFrameTemplate")
+	strip:SetFrameStrata(STRIP_STRATA)
+	strip:SetFixedFrameStrata(true)
 	strip:SetFrameLevel(pop:GetFrameLevel() + 1)
 	strip:EnableMouse(true)
 	strip:SetAttribute("sf-pick", s.index)
@@ -1156,7 +1166,7 @@ local function layoutArrow(s, shown)
 	TB.placeArrow(ar, s.button, s.arrowVis.glyph)
 	TB.skin.styleArrow(s.arrowVis)
 	ar:SetShown(shown)
-	ar:SetFrameLevel(s.popout.catch:GetFrameLevel() + 2)
+	ar:SetFrameLevel(bar:GetFrameLevel() + ARROW_LEVEL)
 	s.arrowVis:SetShown(shown)
 end
 
@@ -1300,7 +1310,7 @@ function layout()
 	for _, s in ipairs({ slots.earth, slots.fire, slots.water, slots.air, setSlot }) do
 		local hovers = (s == setSlot and setHover or s ~= setSlot and hoverMode) and true or false
 		picker:SetAttribute("sf-hover" .. s.index, hovers)
-		s.popout.catch:SetShown(not hovers)
+		s.popout.catch:SetShown(not hovers and c.pickAway)
 		s.popout.strip:SetShown(hovers)
 	end
 	for _, s in ipairs(shown) do

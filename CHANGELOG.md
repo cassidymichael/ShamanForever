@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Totem bar: An open totem picker now shows on top of your action bars and other parts of the HUD, instead of behind them.
+- Totem bar: When not using the hover-option for totem picker (using the arrow buttons instead), a click away from an expanded totem picker no longer blocks a click on an action button. And a new option has been added to make clicks away from an expanded totem picker not close the picker, but rather leave it open.
 - Swing timer: "Show" now has the choices "While swinging", "In combat (even when not swinging)", "Always" and "Never". If you had "Always" picked, the bar now stays on screen between swings.
 - Swing timer: New options "Bar between swings" (empty or full) for how the bar looks when it is on screen but you are not swinging, "Spark on the bar", and more options for Flurry charges on swing timer (position, thickness, and colour for the Flurry charges' pips).
 
