@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.17.2 (2026-11-25)
 
 - Totem bar: An open totem picker now shows on top of your action bars and other parts of the HUD, instead of behind them.
 - Totem bar: When not using the hover-option for totem picker (using the arrow buttons instead), a click away from an expanded totem picker no longer blocks a click on an action button. And a new option has been added to make clicks away from an expanded totem picker not close the picker, but rather leave it open.
