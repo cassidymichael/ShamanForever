@@ -60,6 +60,8 @@ local ELEMENT_KEYS = {}
 -- key -> { frame, label, paint(texture), getSize(size), stack(), learned(), borderHost, shape,
 -- standInBorder, defaults, effects, ownSchool(), spell, icon, school, blurb, experimental, experiments,
 -- kind, def, race }
+-- clickSpell(): the learned spell ID for a secure left-click overlay, if the element has one
+-- tipSpell(): the displayed spell ID for a composite element (otherwise def.spellID or spell)
 -- experiments: the names of experimental features its parts add (_Kinds), listed in About
 -- getSize: width and height for the group's icon size (elements need not be square); borderHost:
 -- the part its border is drawn on; shape "bar": a bar, not an icon (takes only the border
@@ -105,6 +107,18 @@ function E.register(key, e)
 		if e.ranges[name] == nil then e.ranges[name] = r end
 	end
 	e.stack = e.stack or e.frame.stack
+	local tip, addPicture = W.makeHUDTip(e.frame, function()
+		if e.tipSpell then return e.tipSpell() end
+		return e.def and e.def.spellID or e.spell and Spells.known(e.spell)
+	end, function() return e.label end, function() return e.blurb end, e.frame.tex)
+	e.frame.addTipPicture = addPicture
+	local stack = e.stack
+	e.stack = function()
+		if stack then stack() end
+		-- Aura containers and their covers can reach about 50 levels over the element.
+		tip:SetFrameLevel(e.frame:GetFrameLevel() + 60)
+	end
+	e.stack()
 	if e.styles then ns.Style.setOwnerDefaults(key, e.styles) end
 	if e.timerCant then ns.Timer.CANT[key] = e.timerCant end
 	ELEMENTS[key] = e
@@ -395,6 +409,12 @@ local function fadeElement(key, a)
 	local e = ELEMENTS[key]
 	local f = e and e.frame
 	if not f then return end
+	if e.clickSpell then
+		f.clickIdleTarget = a
+		if e.clickGate then W.syncSpellClickIdle(e.clickGate, a) end
+		-- Lockdown can't disarm a casting button on a totem/cooldown event. Keep its icon visible instead.
+		if a == 0 and ns.inCombat() then a = 0.3 end
+	end
 	f.idleTarget = a
 	local secs = idleFade()
 	W.fadeTo(f, a, secs)
@@ -646,11 +666,54 @@ local function memberWhen(g, gf, key)
 	return SHOW_WHEN.combat
 end
 
+local function syncSpellClick(key, e, g, gf)
+	local button = e.clickButton
+	local f = e.frame
+	local id = isActive and acct.locked and not ns.Preview.isOn() and gf and gf.laidOut
+		and f:GetParent() == gf and g.alpha > 0 and inUse(key) and e.clickSpell()
+	local x, y
+	if id then x, y = screenCenter(f) end
+	if not x then
+		if button then hideFrame(button); button:SetAttribute("spell", nil) end
+		return
+	end
+	if not button then
+		local gate = CreateFrame("Frame", nil, barHolders.secure, "SecureFrameTemplate")
+		gate:SetAllPoints()
+		e.clickGate = gate
+		button = CreateFrame("Button", nil, gate, "SecureActionButtonTemplate")
+		button:RegisterForClicks("LeftButtonDown", "LeftButtonUp")
+		button:SetAttribute("*type1", "spell")
+		button:EnableMouse(true)
+		if button.SetPassThroughButtons then button:SetPassThroughButtons("RightButton", "MiddleButton") end
+		e.clickButton = button
+	end
+	W.syncSpellClickIdle(e.clickGate, f.clickIdleTarget)
+	button:SetAttribute("spell", id)
+	-- Copy screen geometry instead of anchoring to the icon: the secure button must not protect the HUD.
+	local ui = UIParent:GetEffectiveScale()
+	local ux, uy = UIParent:GetCenter()
+	local uw, uh = UIParent:GetSize()
+	local point = g.point
+	ux = ux + (point:find("LEFT") and -uw / 2 or point:find("RIGHT") and uw / 2 or 0)
+	uy = uy + (point:find("BOTTOM") and -uh / 2 or point:find("TOP") and uh / 2 or 0)
+	local scale = f:GetEffectiveScale() / ui
+	button:ClearAllPoints()
+	button:SetPoint("CENTER", UIParent, point, x / ui - ux, y / ui - uy)
+	button:SetSize(f:GetWidth() * scale, f:GetHeight() * scale)
+	button:SetFrameStrata(f:GetFrameStrata())
+	button:SetFrameLevel(f:GetFrameLevel() + W.LEVELS.text + 1)
+	-- A member's combat-only rule is stricter than its group's, except when both are held after combat.
+	showFrame(button, memberWhen(g, gf, key) or groupWhen(g, gf))
+end
+
 local function driveGroup(id)
 	local g, gf = groupById(id), groupFrames[id]
 	if not (g and gf and gf.laidOut) or InCombatLockdown() then return end
 	for _, key in ipairs(g.members) do
-		if isEnabled(key) then showFrame(ELEMENTS[key].frame, memberWhen(g, gf, key)) end
+		local e = ELEMENTS[key]
+		if isEnabled(key) then showFrame(e.frame, memberWhen(g, gf, key)) end
+		if e.clickSpell then syncSpellClick(key, e, g, gf) end
 	end
 	showFrame(gf, groupWhen(g, gf))
 end
@@ -878,6 +941,12 @@ local function layoutElements()
 	each("afterGroups")
 	-- After the bars' layout: their sizes are their frames'
 	if not waits then settleFresh() end
+	for key, e in pairs(ELEMENTS) do
+		if e.clickSpell then
+			local g = groupOf(key)
+			syncSpellClick(key, e, g, g and groupFrames[g.id])
+		end
+	end
 	ns.Timer.placeAll()
 	W.refitRings()
 	ns.Positioning.update()
@@ -1107,8 +1176,15 @@ local function sayOff(off, waiting, back, stays)
 end
 -- Saved for the character, and said in chat; returns whether it changed. how: "toggle" after the
 -- toggle's click, which may have hidden or shown the holder with the flag already set
+local pendingDisable
 local function setOff(want, how)
 	want = want and true or false
+	pendingDisable = nil
+	if want and not ns.isOff() and how ~= "toggle" and InCombatLockdown() then
+		pendingDisable = true
+		say("still on: disabling after combat. %s turns it off now; %s enable cancels.", toggleKey(), ns.CLASS.slash[1])
+		return false
+	end
 	if want == ns.isOff() then
 		if how == "toggle" then
 			ns.offApplied()
@@ -1137,6 +1213,7 @@ end
 toggle:SetScript("PostClick", function(_, _, down)
 	if not down then setOff(toggleHead:GetAttribute("sf-off") == true, "toggle") end
 end)
+ns.onCombatEnd(function() if pendingDisable then setOff(true) end end)
 
 -- The active profile
 local function fillDefaults(t, defaults)
@@ -1244,6 +1321,11 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 		reg("UNIT_SPELLCAST_SUCCEEDED", "player")
 		reg("SPELL_UPDATE_COOLDOWN")
 		reg("SPELLS_CHANGED")
+		ns.onCombatStart(function()
+			for key, e in pairs(ELEMENTS) do
+				if e.clickSpell and e.frame.clickIdleTarget == 0 then fadeElement(key, 0) end
+			end
+		end)
 		ns.onCombatEnd(refreshAll)
 		-- A restriction ended (a match, an encounter): auras may be readable with no combat end to say so;
 		-- skipped when a refresh since already read everything

@@ -30,6 +30,87 @@ function W.setTip(frame, title, text, anchor)
 	frame:SetScript("OnLeave", function() GameTooltip:Hide() end)
 end
 
+function W.anchorActionTip(owner)
+	if _G.GameTooltip_SetDefaultAnchor then
+		_G.GameTooltip_SetDefaultAnchor(GameTooltip, owner)
+	else
+		GameTooltip:SetOwner(owner, "ANCHOR_NONE")
+		GameTooltip:ClearAllPoints()
+		GameTooltip:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -13, 13)
+	end
+end
+
+-- Motion only: the tooltip must not eat casts, aura clicks, or positioning drags.
+function W.makeHUDTip(parent, spell, title, text, picture)
+	local hit = CreateFrame("Frame", nil, parent)
+	hit:SetAllPoints(parent)
+	local pictures = {}
+	local function addPicture(host, tex, clip) pictures[host] = { tex = tex, clip = clip } end
+	addPicture(parent, picture)
+	local function drawn()
+		for host, layer in pairs(pictures) do
+			if ns.plain(ns.safe(host.IsVisible, host)) then
+				local alpha = ns.plain(ns.safe(host.GetEffectiveAlpha, host))
+				local tex, clip = layer.tex, layer.clip
+				if alpha and alpha > 0 and (not tex or (ns.plain(ns.safe(tex.GetAlpha, tex)) or 0) > 0)
+					and (not clip or ns.plain(ns.safe(clip.IsMouseOver, clip))) then return true end
+			end
+		end
+		return false
+	end
+	local function hide()
+		hit:SetScript("OnUpdate", nil)
+		if GameTooltip:IsOwned(hit) then GameTooltip:Hide() end
+	end
+	local function show()
+		if ns.isOff() or not drawn() then
+			if GameTooltip:IsOwned(hit) then GameTooltip:Hide() end
+			return
+		end
+		local id = spell()
+		W.anchorActionTip(hit)
+		local ok = id and ns.safe(GameTooltip.SetSpellByID, GameTooltip, id)
+		if not ok then
+			GameTooltip:SetText(title())
+			local words = text()
+			if words then GameTooltip:AddLine(words, 1, 1, 1, true) end
+		end
+		GameTooltip:Show()
+	end
+	hit:SetScript("OnLeave", hide)
+	hit:SetScript("OnHide", hide)
+	-- The same owner can show another spell after a shield/imbue change without a mouse move.
+	local elapsed, waiting = 0, false
+	local function update(_, dt)
+		if not waiting and not GameTooltip:IsOwned(hit) then hit:SetScript("OnUpdate", nil); return end
+		elapsed = elapsed + dt
+		if elapsed < 0.2 then return end
+		elapsed = 0
+		show()
+		waiting = not GameTooltip:IsOwned(hit)
+	end
+	hit:SetScript("OnEnter", function()
+		show()
+		waiting = not GameTooltip:IsOwned(hit)
+		hit:SetScript("OnUpdate", update)
+	end)
+	-- Registering OnEnter/OnLeave enables clicks again, so apply click-through last.
+	hit:SetMouseClickEnabled(false)
+	hit:SetMouseMotionEnabled(true)
+	return hit, addPicture
+end
+
+-- The parent is an idle gate; the button keeps its independent group/member visibility driver.
+function W.syncSpellClickIdle(gate, idleTarget)
+	local when = idleTarget == 0 and "[combat] show; hide" or nil
+	if gate.idleWhen == when then return end
+	if InCombatLockdown() then return end
+	if ns.setVisibilityDriver(gate, when, "spell click idle") then
+		gate.idleWhen = when
+		if not when then gate:Show() end
+	end
+end
+
 -- A panel the player drags, kept on screen, hidden; border: its edge colour over a dark fill (none: no backdrop)
 function W.floatingPanel(name, width, height, border)
 	local f = CreateFrame("Frame", name, UIParent, "BackdropTemplate")
@@ -444,6 +525,8 @@ local function initAuraButton(slot, button)
 		slot.timer:apply()
 	end
 	if o.onButton then o.onButton(slot, button, cd) end
+	-- The native icon can stay visible over a fully faded HUD background (e.g. Shields or a proc).
+	if slot.frame.addTipPicture then slot.frame.addTipPicture(host, tex, slot.clip) end
 	slot.button = button
 end
 
@@ -1105,6 +1188,9 @@ function ClipLook:setup()
 	local size = ns.Elements.sizeOf(o.key)
 	local w = cellWidth(size, self.frame, o)
 	self:make(w, w, size)
+	if self.container and not self.err and not o.glowOnly and self.frame.addTipPicture then
+		self.frame.addTipPicture(self.art, self.tex, self.clip)
+	end
 end
 
 function ClipLook:took(size, filters)

@@ -17,7 +17,7 @@ local setting = E.setting
 -- blurb, experimental; its parts' flags (this file's: readyGlow, lowMana, noReadyPop, reset; auraState
 -- and buffBar in _Buffs); expireLooks (which looks Expiring offers; false: none), race (race IDs; others
 -- see "Not your race"), cd and duration (preview only), defaults (over the parts'), ranges, choices,
--- styles and timerCant (see E.register).
+-- styles and timerCant (see E.register). clickCast adds a secure left click and the spell's usable state.
 local COOLDOWNS = ns.CLASS.cooldowns or {}
 
 -- The kind and its parts (ns.registerPart); a row's flags name its parts. Other files' parts join
@@ -280,6 +280,7 @@ ns.registerPart("lowMana", {
 --                                frame of its own (the icon has none), and its own Expiring (no Expiring
 --                                looks of _Timers' part)
 --   ticks(def)                   whether tick is wanted now
+--   idle(def, when)              overrides the idle condition; nil keeps the cooldown's own condition
 --   tick(def, cantAct)           ten times a second while any part ticks: redraws a look with no
 --                                event to follow (cantAct: the player can't act)
 --   debug(def)                   its words in /sf debug
@@ -337,6 +338,7 @@ for _, def in ipairs(COOLDOWNS) do
 	def.icon = Spells.icon(def.spellKey) or def.icon
 	def.frame = makeCooldownIcon(def)
 	E.register(def.key, { frame = def.frame, label = def.spell,
+		clickSpell = def.clickCast and function() return def.spellID end or nil,
 		defaults = def.defaults or {}, learned = function() return def.spellID ~= nil end,
 		paint = function(t) t:SetTexture(def.iconID or def.icon) end, ranges = def.ranges, choices = def.choices,
 		kind = "cooldown", def = def, spell = def.spellKey, icon = def.icon, school = def.school, blurb = def.blurb,
@@ -549,6 +551,9 @@ local function applyIdle(def, held, inEvent)
 	local running, certain = ownCooldownRunning(def, inEvent)
 	local busy
 	if KD.idleMode(def, when) == "oncd" then busy = not (running and certain) else busy = running end
+	local idle = KD.hook("cooldown", def, "idle")
+	local override = idle and idle(def, when)
+	if override ~= nil then busy = not override end
 	busy = busy or held or when == "never" or not P.getAccount().locked
 	fadeTo(def, busy and 1 or E.idleAlpha(def.key))
 	def.idle = not busy
@@ -584,7 +589,9 @@ function refreshCooldown(def, inEvent)
 	end
 	local dur, bar = cooldownFor(f, def.key, def.spellID, inEvent)
 	if dur then f.cdTimer:set(dur, bar) end
-	f.tex:SetDesaturated(false)
+	local unavailable = def.clickCast and (ns.cantAct()
+		or ns.plain(safe(C_Spell.IsSpellUsable, def.spellID)) == false)
+	f.tex:SetDesaturated(unavailable == true)
 	local held = false
 	if def.reagent then
 		local hold, ring, pulse = R.refresh(def)
@@ -740,14 +747,16 @@ function CD.applyTimers()
 	end
 end
 
-local events   -- set(on): the reagent rows' events, from start
+local events, usableEvents   -- set(on), from start
 function CD.applyLayout()
-	local reagents = false
+	local reagents, clickable = false, false
 	for _, def in ipairs(COOLDOWNS) do
 		styleCooldown(def)
 		if def.reagent and E.inUse(def.key) then reagents = true end
+		if def.clickCast and E.inUse(def.key) then clickable = true end
 	end
 	if events then events(reagents) end
+	if usableEvents then usableEvents(clickable) end
 	refreshCooldowns()
 	syncReadyTicker()
 end
@@ -780,8 +789,11 @@ end
 function CD.start()
 	local ev = CreateFrame("Frame")
 	events = ns.eventsWhile(ev, { "BAG_UPDATE_DELAYED", { "UNIT_AURA", "player" } })
+	usableEvents = ns.eventsWhile(ev, { "SPELL_UPDATE_USABLE" })
 	ev:SetScript("OnEvent", function(_, event)
-		if event == "BAG_UPDATE_DELAYED" then
+		if event == "SPELL_UPDATE_USABLE" then
+			for _, def in ipairs(COOLDOWNS) do if def.clickCast then refreshCooldown(def) end end
+		elseif event == "BAG_UPDATE_DELAYED" then
 			for _, def in ipairs(COOLDOWNS) do if def.reagent then refreshCooldown(def) end end
 		elseif event == "UNIT_AURA" then
 			if not ns.aurasReadable() then return end
@@ -793,20 +805,51 @@ function CD.start()
 	end)
 end
 
--- /sf debug
-function CD.debug()
+local function debugClickCast(def)
+	local f, id = def.frame, def.spellID
+	local b = E.ALL[def.key].clickButton
+	local ok, usable, noPower = safe(C_Spell.IsSpellUsable, id)
+	local cok, cd = safe(C_Spell.GetSpellCooldown, id)
+	if not cok or isSecret(cd) or type(cd) ~= "table" then cd = {} end
+	say("client name=%s, usable=%s, noPower=%s; cooldown active=%s, GCD=%s, start=%s, duration=%s",
+		id and Spells.nameOf(id) or "?", ok and describeArg(usable) or "?", ok and describeArg(noPower) or "?",
+		describeArg(cd.isActive), describeArg(cd.isOnGCD), describeArg(cd.startTime), describeArg(cd.duration))
+	say("HUD visible=%s, opacity=%s, idle mode=%s, idle target=%s, positioning locked=%s",
+		tostring(f:IsVisible()), describeArg(f:GetEffectiveAlpha()), E.idleWhen(def.key),
+		tostring(f.idleTarget), tostring(P.getAccount().locked))
+	if not b then say("secure click button not created") return end
+	local fok, foci = safe(_G.GetMouseFoci)
+	local top = fok and not isSecret(foci) and type(foci) == "table" and foci[1]
+	local focus = not isSecret(top) and top or nil
+	local name = focus and ns.plain(safe(focus.GetDebugName or focus.GetName, focus))
+	say("secure click: type=%s, spell=%s, visible=%s, mouse=%s, hovered=%s, top focus=%s",
+		describeArg(b:GetAttribute("*type1")), describeArg(b:GetAttribute("spell")), tostring(b:IsVisible()),
+		tostring(b:IsMouseEnabled()), tostring(b:IsMouseOver()), focus == b and def.spell or name or "?")
+	say("secure clicks=%s; top focus clicks=%s, motion=%s",
+		describeArg(ns.plain(safe(b.IsMouseClickEnabled, b))),
+		focus and describeArg(ns.plain(safe(focus.IsMouseClickEnabled, focus))) or "?",
+		focus and describeArg(ns.plain(safe(focus.IsMouseMotionEnabled, focus))) or "?")
+end
+
+local function debugRow(def)
+	local words = ""
+	for _, p in ipairs(KD.partsOf("cooldown", def)) do
+		local d = p.runtime and p.runtime.debug
+		if d then words = words .. d(def) .. ", " end
+	end
+	local extra = ""
+	if def.reagent then
+		extra = string.format(", reagent %s (takes it: %s, Reagent Economy %s)",
+			describeArg(def.reagentRead), tostring(def.takesReagent), tostring(R.perkKnown()))
+	end
+	say("%s: spell %s, %sidle %s%s", def.spell, tostring(def.spellID), words, tostring(def.idle), extra)
+	if def.clickCast then debugClickCast(def) end
+end
+
+-- /sf debug [projection]
+function CD.debug(key)
 	for _, def in ipairs(COOLDOWNS) do
-		local words = ""
-		for _, p in ipairs(KD.partsOf("cooldown", def)) do
-			local d = p.runtime and p.runtime.debug
-			if d then words = words .. d(def) .. ", " end
-		end
-		local extra = ""
-		if def.reagent then
-			extra = string.format("%s, reagent %s (takes it: %s, Reagent Economy %s)", extra,
-				describeArg(def.reagentRead), tostring(def.takesReagent), tostring(R.perkKnown()))
-		end
-		say("%s: spell %s, %sidle %s%s", def.spell, tostring(def.spellID), words, tostring(def.idle), extra)
+		if not key or def.key == key then debugRow(def) end
 	end
 end
 

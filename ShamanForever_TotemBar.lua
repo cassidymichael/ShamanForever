@@ -672,7 +672,7 @@ for set, id in ipairs(SET_CALL) do
 	p.on:SetBlendMode("ADD")
 	p:SetScript("OnEnter", function(self)
 		if noTips() then return end
-		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+		W.anchorActionTip(self)
 		if not ns.try("totem bar: tooltip", GameTooltip.SetSpellByID, GameTooltip, id) then
 			GameTooltip:SetText(C_Spell.GetSpellName(id) or "")
 		end
@@ -1130,7 +1130,7 @@ local function layoutPopout(s, size, known)
 			p.none:SetText("X")
 			p:SetScript("OnEnter", function(self)
 				if noTips() then return end
-				GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+				W.anchorActionTip(self)
 				if self.spellID and self.spellID > 0 then GameTooltip:SetSpellByID(self.spellID)
 				else GameTooltip:SetText("No totem") end
 				GameTooltip:Show()
@@ -1548,7 +1548,7 @@ for _, el in ipairs(ELEMENTS) do
 		local c = cfg()
 		local ok, d = ns.try("totem bar: tooltip", GetTotemDuration, s.slot)
 		if not (ok and d) and c.mode ~= "everything" then return end
-		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+		W.anchorActionTip(self)
 		if ok and d then
 			ns.try("totem bar: tooltip", GameTooltip.SetTotem, GameTooltip, s.slot)
 		else
@@ -1584,7 +1584,7 @@ for _, e in pairs(extras) do
 		if kbEnter(self, e.command, e.keys) then return end
 		if noTips() then return end
 		local c = cfg()
-		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+		W.anchorActionTip(self)
 		if not ns.try("totem bar: tooltip", GameTooltip.SetSpellByID, GameTooltip, e.spell) then
 			GameTooltip:SetText(C_Spell.GetSpellName(e.spell) or e.key)
 		end

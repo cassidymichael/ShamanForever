@@ -66,7 +66,9 @@ ns.CLASS.cooldowns = {
 	auraBuff({ key = "farseer", spellKey = "rageOfTheFarseer", icon = 136048, auraState = { length = 25 },
 		school = "air", cd = 180, experimental = "Rage of the Farseer" }),
 	{ key = "projection", power = true, spellKey = "totemicProjection", icon = 136099, school = "spirit",
-		blurb = "Cooldown.", cd = 30, defaults = { idleWhen = "offcd" } },
+		clickCast = true, needsAnyTotem = true, readsTotems = true,
+		blurb = "Cooldown. Left-click to cast while positioning is locked.",
+		cd = 30, defaults = { idleWhen = "nototem" } },
 	{ key = "reincarnation", spellKey = "reincarnation", icon = 136080, school = "spirit",
 		blurb = "Cooldown, and your Ankhs when they run low.",
 		styles = { gcd = { show = false } },   -- never needs the sweep

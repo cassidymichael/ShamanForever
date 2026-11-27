@@ -28,6 +28,7 @@ local shockIcon = 136026
 local shockIDs = {}
 local usedShock, shockSpellID, manaSpellID
 E.register("shock", { frame = shock, label = "Shocks", paint = function(t) t:SetTexture(shockIcon) end,
+	tipSpell = function() return shockSpellID end,
 	learned = function() return next(shockIDs) ~= nil end,
 	defaults = { idleWhen = "never", idleAlpha = 0.3,
 		track = "earth",
@@ -196,6 +197,9 @@ local function initMark(m, button)
 	button:SetIcon(m.tex)
 	button:SetDurationCooldown(m.swipe)
 	m.button = button
+	local tip = W.makeHUDTip(button, function() return m.spellID end,
+		function() return Spells.name(m.spell) end, function() return "On your target." end)
+	tip:SetFrameLevel(button:GetFrameLevel() + 10)
 	if m.size then fitMark(m, button, m.size) end
 end
 

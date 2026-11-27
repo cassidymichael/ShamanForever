@@ -102,6 +102,7 @@ function SH.school()
 	local s = SHIELDS[shownShield()]
 	return s.known and s.school or nil
 end
+E.ALL.shield.tipSpell = function() return SHIELDS[shownShield()].spellID end
 
 -- Match by spell ID, never by name alone: spells sharing a shield's name (the bolts Lightning Shield
 -- fires) aren't casts of it. An unknown ID counts only when the client says plainly the player knows it.
