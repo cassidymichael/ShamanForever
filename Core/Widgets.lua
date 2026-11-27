@@ -44,8 +44,6 @@ end
 function W.makeHUDTip(parent, spell, title, text)
 	local hit = CreateFrame("Frame", nil, parent)
 	hit:SetAllPoints(parent)
-	hit:SetMouseClickEnabled(false)
-	hit:SetMouseMotionEnabled(true)
 	local function hide()
 		hit:SetScript("OnUpdate", nil)
 		if GameTooltip:IsOwned(hit) then GameTooltip:Hide() end
@@ -77,6 +75,9 @@ function W.makeHUDTip(parent, spell, title, text)
 		show()
 		if GameTooltip:IsOwned(hit) then hit:SetScript("OnUpdate", update) end
 	end)
+	-- Registering OnEnter/OnLeave enables clicks again, so apply click-through last.
+	hit:SetMouseClickEnabled(false)
+	hit:SetMouseMotionEnabled(true)
 	return hit
 end
 

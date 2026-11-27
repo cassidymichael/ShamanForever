@@ -18,7 +18,11 @@ local function frame()
 	function f:SetAllPoints(parent) self.parent = parent end
 	function f:SetMouseClickEnabled(on) self.clicks = on end
 	function f:SetMouseMotionEnabled(on) self.motion = on end
-	function f:SetScript(event, fn) self.scripts[event] = fn end
+	function f:SetScript(event, fn)
+		self.scripts[event] = fn
+		-- WoW enables both kinds of mouse input when these scripts are registered.
+		if fn and (event == "OnEnter" or event == "OnLeave") then self.clicks, self.motion = true, true end
+	end
 	function f:IsVisible() return self.visible end
 	function f:Hide() self.visible = false end
 	return f
@@ -52,6 +56,7 @@ hit.scripts.OnUpdate(hit, 0.2)
 assert(tooltip.spell == 324)
 hit.scripts.OnLeave()
 assert(not tooltip.shown and not hit.scripts.OnUpdate)
+assert(hit.clicks == false and hit.motion)
 
 -- Non-spell indicators and unsupported spell tooltips still explain the element.
 spell = nil

@@ -825,6 +825,10 @@ local function debugClickCast(def)
 	say("secure click: type=%s, spell=%s, visible=%s, mouse=%s, hovered=%s, top focus=%s",
 		describeArg(b:GetAttribute("*type1")), describeArg(b:GetAttribute("spell")), tostring(b:IsVisible()),
 		tostring(b:IsMouseEnabled()), tostring(b:IsMouseOver()), focus == b and def.spell or name or "?")
+	say("secure clicks=%s; top focus clicks=%s, motion=%s",
+		describeArg(ns.plain(safe(b.IsMouseClickEnabled, b))),
+		focus and describeArg(ns.plain(safe(focus.IsMouseClickEnabled, focus))) or "?",
+		focus and describeArg(ns.plain(safe(focus.IsMouseMotionEnabled, focus))) or "?")
 end
 
 local function debugRow(def)
