@@ -61,6 +61,7 @@ local ELEMENT_KEYS = {}
 -- standInBorder, defaults, effects, ownSchool(), spell, icon, school, blurb, experimental, experiments,
 -- kind, def, race }
 -- clickSpell(): the learned spell ID for a secure left-click overlay, if the element has one
+-- tipSpell(): the displayed spell ID for a composite element (otherwise def.spellID or spell)
 -- experiments: the names of experimental features its parts add (_Kinds), listed in About
 -- getSize: width and height for the group's icon size (elements need not be square); borderHost:
 -- the part its border is drawn on; shape "bar": a bar, not an icon (takes only the border
@@ -106,6 +107,17 @@ function E.register(key, e)
 		if e.ranges[name] == nil then e.ranges[name] = r end
 	end
 	e.stack = e.stack or e.frame.stack
+	local tip = W.makeHUDTip(e.frame, function()
+		if e.tipSpell then return e.tipSpell() end
+		return e.def and e.def.spellID or e.spell and Spells.known(e.spell)
+	end, function() return e.label end, function() return e.blurb end)
+	local stack = e.stack
+	e.stack = function()
+		if stack then stack() end
+		-- Aura containers and their covers can reach about 50 levels over the element.
+		tip:SetFrameLevel(e.frame:GetFrameLevel() + 60)
+	end
+	e.stack()
 	if e.styles then ns.Style.setOwnerDefaults(key, e.styles) end
 	if e.timerCant then ns.Timer.CANT[key] = e.timerCant end
 	ELEMENTS[key] = e

@@ -129,10 +129,12 @@ end
 local function preferredImbueIcon() return imbueIconFor(preferredKey()) end
 local drawnIcon
 -- Its cost: the imbue it shows
-CS.watch("imbue", { frame = imbue, power = true, spells = function()
+local function shownSpell()
 	local key = imbueState.key or preferredKey()
 	return IMBUES[key] and Spells.known(key) or nil
-end })
+end
+E.ALL.imbue.tipSpell = shownSpell
+CS.watch("imbue", { frame = imbue, power = true, spells = shownSpell })
 
 -- quiet: nothing can be cast now, so a missing imbue shows grey without the warning
 local function warn(field) return own("warn", field) end

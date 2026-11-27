@@ -58,6 +58,8 @@ Some highlights include:
     Its **Idle when > No totems** option fades it while all four totem slots are empty, including during cooldown.
     Existing profiles keep their saved idle choice; **Never**, **Ready** and **Cooling down** remain available.
 *   `/sf debug projection` reports Totemic Call's spell, totems, cooldown, usability, idle state and click target.
+*   Hover HUD elements for spell information at the default action-bar tooltip anchor (normally bottom right).
+    Totem-bar tooltips use the same anchor; choose **Totem bar > Tooltips > Always** to show them in combat too.
 
 ## Feedback
 

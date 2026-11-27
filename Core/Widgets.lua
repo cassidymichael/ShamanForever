@@ -30,6 +30,56 @@ function W.setTip(frame, title, text, anchor)
 	frame:SetScript("OnLeave", function() GameTooltip:Hide() end)
 end
 
+function W.anchorActionTip(owner)
+	if _G.GameTooltip_SetDefaultAnchor then
+		_G.GameTooltip_SetDefaultAnchor(GameTooltip, owner)
+	else
+		GameTooltip:SetOwner(owner, "ANCHOR_NONE")
+		GameTooltip:ClearAllPoints()
+		GameTooltip:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -13, 13)
+	end
+end
+
+-- Motion only: the tooltip must not eat casts, aura clicks, or positioning drags.
+function W.makeHUDTip(parent, spell, title, text)
+	local hit = CreateFrame("Frame", nil, parent)
+	hit:SetAllPoints(parent)
+	hit:SetMouseClickEnabled(false)
+	hit:SetMouseMotionEnabled(true)
+	local function hide()
+		hit:SetScript("OnUpdate", nil)
+		if GameTooltip:IsOwned(hit) then GameTooltip:Hide() end
+	end
+	local function show()
+		if ns.isOff() or not hit:IsVisible() then hide(); return end
+		local id = spell()
+		W.anchorActionTip(hit)
+		local ok = id and ns.safe(GameTooltip.SetSpellByID, GameTooltip, id)
+		if not ok then
+			GameTooltip:SetText(title())
+			local words = text()
+			if words then GameTooltip:AddLine(words, 1, 1, 1, true) end
+		end
+		GameTooltip:Show()
+	end
+	hit:SetScript("OnLeave", hide)
+	hit:SetScript("OnHide", hide)
+	-- The same owner can show another spell after a shield/imbue change without a mouse move.
+	local elapsed = 0
+	local function update(_, dt)
+		if not GameTooltip:IsOwned(hit) then hit:SetScript("OnUpdate", nil); return end
+		elapsed = elapsed + dt
+		if elapsed < 0.2 then return end
+		elapsed = 0
+		show()
+	end
+	hit:SetScript("OnEnter", function()
+		show()
+		if GameTooltip:IsOwned(hit) then hit:SetScript("OnUpdate", update) end
+	end)
+	return hit
+end
+
 -- A panel the player drags, kept on screen, hidden; border: its edge colour over a dark fill (none: no backdrop)
 function W.floatingPanel(name, width, height, border)
 	local f = CreateFrame("Frame", name, UIParent, "BackdropTemplate")

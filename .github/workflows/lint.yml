@@ -16,3 +16,5 @@ jobs:
         run: luacheck . --no-color
       - name: Totemic Call regression tests
         run: lua tests/totemic_call.lua
+      - name: HUD tooltip regression tests
+        run: lua tests/tooltips.lua
