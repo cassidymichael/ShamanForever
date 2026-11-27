@@ -20,3 +20,4 @@ ignore:
   - CHANGELOG.md
   - RELEASE_NOTES.md
   - docs
+  - tests

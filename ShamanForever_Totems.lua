@@ -388,6 +388,45 @@ ns.registerPart("needsTotem", {
 	},
 })
 
+-- An empty slot has no duration object. Unknown reads must not hide a usable spell.
+local function anyTotem()
+	local unknown = false
+	for slot = 1, 4 do
+		local ok, dur = safe(GetTotemDuration, slot)
+		if not ok or isSecret(dur) then unknown = true
+		elseif dur ~= nil then return true end
+	end
+	if not unknown then return false end
+end
+
+ns.registerPart("needsAnyTotem", {
+	kind = "cooldown",
+	idle = { choices = {
+		{ "never", "Never", "It always shows in full" },
+		{ "nototem", "No totems", "Idle while no totems are out",
+			"Any totem keeps it shown in full, even while cooling down." },
+		{ "offcd", "Ready", "Idle while it's ready, with or without totems out" },
+		{ "oncd", "Cooling down", "Idle while it's cooling down, with or without totems out" },
+	} },
+	preview = {
+		typical = "out", warning = "nototem",
+		states = { { "nototem", "No totems", 20 }, { "out", "Totem out", 21 } },
+		idles = function(st, _, when)
+			if when == "nototem" then return st == "nototem" end
+		end,
+	},
+	runtime = {
+		idle = function(_, when)
+			if when == "nototem" then return anyTotem() == false end
+		end,
+		gate = function()
+			local have = anyTotem()
+			if have ~= nil then return have and "ready" or "blocked" end
+		end,
+		debug = function() return "totems out " .. tostring(anyTotem()) end,
+	},
+})
+
 -- Totem ends on the elements with a totem of their own, gated on the time left
 local function playEnd(f, field, def, dur, opts)
 	if not opts then return end

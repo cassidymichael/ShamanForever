@@ -66,7 +66,8 @@ SlashCmdList[SLASH] = function(msg)
 	elseif cmd == "preview" then
 		ns.Preview.toggle()
 	elseif cmd == "debug" then
-		E.debugReport()
+		if msg:lower():match("^%S+%s+projection%s*$") then ns.Cooldowns.debug("projection")
+		else E.debugReport() end
 	elseif cmd == "disable" then
 		E.setOff(true)
 	elseif cmd == "enable" then

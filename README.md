@@ -54,6 +54,10 @@ Some highlights include:
 *   Key bindings for the totem bar: Escape > Options > Keybindings > ShamanForever, or use the Quick Keybinds feature.
 *   `/sf lock` to unlock positioning.
 *   `/sf preview` shows your HUD in various modes to get a sense of it in action.
+*   Left-click Totemic Call's HUD icon to cast while positioning is locked and preview is off.
+    Its **Idle when > No totems** option fades it while all four totem slots are empty, including during cooldown.
+    Existing profiles keep their saved idle choice; **Never**, **Ready** and **Cooling down** remain available.
+*   `/sf debug projection` reports Totemic Call's spell, totems, cooldown, usability, idle state and click target.
 
 ## Feedback
 

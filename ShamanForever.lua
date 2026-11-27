@@ -60,6 +60,7 @@ local ELEMENT_KEYS = {}
 -- key -> { frame, label, paint(texture), getSize(size), stack(), learned(), borderHost, shape,
 -- standInBorder, defaults, effects, ownSchool(), spell, icon, school, blurb, experimental, experiments,
 -- kind, def, race }
+-- clickSpell(): the learned spell ID for a secure left-click overlay, if the element has one
 -- experiments: the names of experimental features its parts add (_Kinds), listed in About
 -- getSize: width and height for the group's icon size (elements need not be square); borderHost:
 -- the part its border is drawn on; shape "bar": a bar, not an icon (takes only the border
@@ -646,11 +647,50 @@ local function memberWhen(g, gf, key)
 	return SHOW_WHEN.combat
 end
 
+local function syncSpellClick(key, e, g, gf)
+	local button = e.clickButton
+	local f = e.frame
+	local id = isActive and acct.locked and not ns.Preview.isOn() and gf and gf.laidOut
+		and f:GetParent() == gf and g.alpha > 0 and inUse(key) and e.clickSpell()
+	local x, y
+	if id then x, y = screenCenter(f) end
+	if not x then
+		if button then hideFrame(button); button:SetAttribute("spell", nil) end
+		return
+	end
+	if not button then
+		button = CreateFrame("Button", nil, barHolders.secure, "SecureActionButtonTemplate")
+		button:RegisterForClicks("LeftButtonDown", "LeftButtonUp")
+		button:SetAttribute("*type1", "spell")
+		button:EnableMouse(true)
+		if button.SetPassThroughButtons then button:SetPassThroughButtons("RightButton", "MiddleButton") end
+		e.clickButton = button
+	end
+	button:SetAttribute("spell", id)
+	-- Copy screen geometry instead of anchoring to the icon: the secure button must not protect the HUD.
+	local ui = UIParent:GetEffectiveScale()
+	local ux, uy = UIParent:GetCenter()
+	local uw, uh = UIParent:GetSize()
+	local point = g.point
+	ux = ux + (point:find("LEFT") and -uw / 2 or point:find("RIGHT") and uw / 2 or 0)
+	uy = uy + (point:find("BOTTOM") and -uh / 2 or point:find("TOP") and uh / 2 or 0)
+	local scale = f:GetEffectiveScale() / ui
+	button:ClearAllPoints()
+	button:SetPoint("CENTER", UIParent, point, x / ui - ux, y / ui - uy)
+	button:SetSize(f:GetWidth() * scale, f:GetHeight() * scale)
+	button:SetFrameStrata(f:GetFrameStrata())
+	button:SetFrameLevel(f:GetFrameLevel() + W.LEVELS.text + 1)
+	-- A member's combat-only rule is stricter than its group's, except when both are held after combat.
+	showFrame(button, memberWhen(g, gf, key) or groupWhen(g, gf))
+end
+
 local function driveGroup(id)
 	local g, gf = groupById(id), groupFrames[id]
 	if not (g and gf and gf.laidOut) or InCombatLockdown() then return end
 	for _, key in ipairs(g.members) do
-		if isEnabled(key) then showFrame(ELEMENTS[key].frame, memberWhen(g, gf, key)) end
+		local e = ELEMENTS[key]
+		if isEnabled(key) then showFrame(e.frame, memberWhen(g, gf, key)) end
+		if e.clickSpell then syncSpellClick(key, e, g, gf) end
 	end
 	showFrame(gf, groupWhen(g, gf))
 end
@@ -878,6 +918,12 @@ local function layoutElements()
 	each("afterGroups")
 	-- After the bars' layout: their sizes are their frames'
 	if not waits then settleFresh() end
+	for key, e in pairs(ELEMENTS) do
+		if e.clickSpell then
+			local g = groupOf(key)
+			syncSpellClick(key, e, g, g and groupFrames[g.id])
+		end
+	end
 	ns.Timer.placeAll()
 	W.refitRings()
 	ns.Positioning.update()
