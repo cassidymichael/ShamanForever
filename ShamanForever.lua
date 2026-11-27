@@ -107,10 +107,11 @@ function E.register(key, e)
 		if e.ranges[name] == nil then e.ranges[name] = r end
 	end
 	e.stack = e.stack or e.frame.stack
-	local tip = W.makeHUDTip(e.frame, function()
+	local tip, addPicture = W.makeHUDTip(e.frame, function()
 		if e.tipSpell then return e.tipSpell() end
 		return e.def and e.def.spellID or e.spell and Spells.known(e.spell)
-	end, function() return e.label end, function() return e.blurb end)
+	end, function() return e.label end, function() return e.blurb end, e.frame.tex)
+	e.frame.addTipPicture = addPicture
 	local stack = e.stack
 	e.stack = function()
 		if stack then stack() end
@@ -408,6 +409,12 @@ local function fadeElement(key, a)
 	local e = ELEMENTS[key]
 	local f = e and e.frame
 	if not f then return end
+	if e.clickSpell then
+		f.clickIdleTarget = a
+		if e.clickGate then W.syncSpellClickIdle(e.clickGate, a) end
+		-- Lockdown can't disarm a casting button on a totem/cooldown event. Keep its icon visible instead.
+		if a == 0 and ns.inCombat() then a = 0.3 end
+	end
 	f.idleTarget = a
 	local secs = idleFade()
 	W.fadeTo(f, a, secs)
@@ -671,13 +678,17 @@ local function syncSpellClick(key, e, g, gf)
 		return
 	end
 	if not button then
-		button = CreateFrame("Button", nil, barHolders.secure, "SecureActionButtonTemplate")
+		local gate = CreateFrame("Frame", nil, barHolders.secure, "SecureFrameTemplate")
+		gate:SetAllPoints()
+		e.clickGate = gate
+		button = CreateFrame("Button", nil, gate, "SecureActionButtonTemplate")
 		button:RegisterForClicks("LeftButtonDown", "LeftButtonUp")
 		button:SetAttribute("*type1", "spell")
 		button:EnableMouse(true)
 		if button.SetPassThroughButtons then button:SetPassThroughButtons("RightButton", "MiddleButton") end
 		e.clickButton = button
 	end
+	W.syncSpellClickIdle(e.clickGate, f.clickIdleTarget)
 	button:SetAttribute("spell", id)
 	-- Copy screen geometry instead of anchoring to the icon: the secure button must not protect the HUD.
 	local ui = UIParent:GetEffectiveScale()
@@ -1165,8 +1176,15 @@ local function sayOff(off, waiting, back, stays)
 end
 -- Saved for the character, and said in chat; returns whether it changed. how: "toggle" after the
 -- toggle's click, which may have hidden or shown the holder with the flag already set
+local pendingDisable
 local function setOff(want, how)
 	want = want and true or false
+	pendingDisable = nil
+	if want and not ns.isOff() and how ~= "toggle" and InCombatLockdown() then
+		pendingDisable = true
+		say("still on: disabling after combat. %s turns it off now; %s enable cancels.", toggleKey(), ns.CLASS.slash[1])
+		return false
+	end
 	if want == ns.isOff() then
 		if how == "toggle" then
 			ns.offApplied()
@@ -1195,6 +1213,7 @@ end
 toggle:SetScript("PostClick", function(_, _, down)
 	if not down then setOff(toggleHead:GetAttribute("sf-off") == true, "toggle") end
 end)
+ns.onCombatEnd(function() if pendingDisable then setOff(true) end end)
 
 -- The active profile
 local function fillDefaults(t, defaults)
@@ -1302,6 +1321,11 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 		reg("UNIT_SPELLCAST_SUCCEEDED", "player")
 		reg("SPELL_UPDATE_COOLDOWN")
 		reg("SPELLS_CHANGED")
+		ns.onCombatStart(function()
+			for key, e in pairs(ELEMENTS) do
+				if e.clickSpell and e.frame.clickIdleTarget == 0 then fadeElement(key, 0) end
+			end
+		end)
 		ns.onCombatEnd(refreshAll)
 		-- A restriction ended (a match, an encounter): auras may be readable with no combat end to say so;
 		-- skipped when a refresh since already read everything

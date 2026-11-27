@@ -870,6 +870,9 @@ local function idleBlock(p, def)
 	local function when() return E.setting(key, "idleWhen") end
 	p:header("Idle")
 	local hidden = ". At 0% it's hidden and keeps its place in the group."
+	if E.ALL[key].clickSpell then
+		hidden = ". At 0% it's hidden out of combat and dimmed to 30% in combat so you can still click it."
+	end
 	local whenRow
 	if choices then
 		local options, tips = {}, {}

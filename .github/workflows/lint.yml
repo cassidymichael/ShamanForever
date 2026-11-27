@@ -18,3 +18,5 @@ jobs:
         run: lua tests/totemic_call.lua
       - name: HUD tooltip regression tests
         run: lua tests/tooltips.lua
+      - name: Combat click visibility regression tests
+        run: lua tests/click_visibility.lua
